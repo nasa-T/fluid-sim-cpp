@@ -83,13 +83,13 @@ class VelocityGrid {
             for (i = 0; i < rows + 1; i++) {
                 vyArray[i] = (float *) malloc(sizeof(float) * cols);
                 for (j = 0; j < cols; j++) {
-                    vyArray[i][j] = 10;
+                    vyArray[i][j] = 0;
                 }
             }
             for (i = 0; i < rows; i++) {
                 vxArray[i] = (float *) malloc(sizeof(float) * (cols + 1));
                 for (j = 0; j < cols + 1; j++) {
-                    vxArray[i][j] = 5;
+                    vxArray[i][j] = 0;
                 }
             }
             cellHeight = height/rows;
@@ -150,6 +150,18 @@ class VelocityGrid {
         VelocityVector getVelocityVector(int i, int j) {
             return VelocityVector(vxArray[i][j], vyArray[i][j]);
         }
+        float getVy(int i, int j) {
+            return vyArray[i][j];
+        }
+        float getVx(int i, int j) {
+            return vxArray[i][j];
+        }
+        void setVy(int i, int j, float vy) {
+            vyArray[i][j] = vy;
+        }
+        void setVx(int i, int j, float vx) {
+            vxArray[i][j] = vx;
+        }
     private:
         float width, height;
         float cellWidth, cellHeight;
@@ -171,7 +183,7 @@ class Neighbors {
 
 class FluidCell {
     public:
-        FluidCell(VelocityVector velocity, float mass, float width, float height, float temp): velocity(velocity), mass(mass), width(width), height(height), temperature(temp) {
+        FluidCell(float mass, float width, float height, float temp): mass(mass), width(width), height(height), temperature(temp) {
             // size is the physical area
             size = width * height;
             density = mass/size;
@@ -311,6 +323,8 @@ class FluidGrid {
             newGrid = (FluidCell **) malloc(sizeof(FluidCell*)*r);
             vGrid = (VelocityGrid *) malloc(sizeof(VelocityGrid));
             vGrid[0] = VelocityGrid(width, height, r, c);
+            new_vGrid = (VelocityGrid *) malloc(sizeof(VelocityGrid));
+            new_vGrid[0] = VelocityGrid(width, height, r, c);
             cellWidth = width / c;
             cellHeight = height / r;
             // in meters per pixel
@@ -323,15 +337,16 @@ class FluidGrid {
                 for (j = 0; j < cols; j++) {
                     //random mass for now
                     // float mass = std::rand() % 256;
-                    // grid[i][j] = FluidCell(mass, cellWidth, cellHeight, 100);
+                    // grid[i][j] = FluidCell(VelocityVector(0,0), mass, cellWidth, cellHeight, 100);
                     if (i == rows/2 && j == cols/2) {
-                        grid[i][j] = FluidCell(VelocityVector(10,0), 100, cellWidth, cellHeight, 100);
+                        grid[i][j] = FluidCell(100, cellWidth, cellHeight, 100);
+                        vGrid->setVy(i,j, 10);
                         // grid[i][j].setVelocity(VelocityVector(10,0));
                     } else if (i == rows/2 && j == cols/2+1) {
-                        grid[i][j] = FluidCell(VelocityVector(0,0), 0, cellWidth, cellHeight, 100);
+                        grid[i][j] = FluidCell(0, cellWidth, cellHeight, 100);
                         // grid[i][j].setVelocity(VelocityVector(10,0));
                     } else {
-                        grid[i][j] = FluidCell(VelocityVector(0,0), 0, cellWidth, cellHeight, 100);
+                        grid[i][j] = FluidCell(0, cellWidth, cellHeight, 100);
                     }
                     if (i != 0) {
                         grid[i][j].setTop(&grid[i - 1][j]);
@@ -349,6 +364,8 @@ class FluidGrid {
                     }
                     grid[i][j].setLoc(i, j);
                     newGrid[i][j] = grid[i][j];
+                    new_vGrid->setVx(i,j,vGrid->getVx(i,j));
+                    new_vGrid->setVy(i,j,vGrid->getVy(i,j));
                 }
             }
             dt = 0.02;
@@ -441,34 +458,57 @@ class FluidGrid {
             int i, j;
             for (i = 0; i < rows; i++) {
                 for (j = 0; j < cols; j++) {
-                    FluidCell cell = *getCell(i,j);
-                    // VelocityVector v = cell.getVelocity();
-                    float physX = cellWidth*j+cellWidth/2;
-                    float physY = height - (cellHeight*i+cellHeight/2); // I want y pointed up
-                    
-                    VelocityVector v = vGrid->sampleVelocityAtPoint(physX, physY);
+                    if ((i < rows) && (j < cols)) {
+                        FluidCell cell = *getCell(i,j);
+                        // VelocityVector v = cell.getVelocity();
+                        float physX = cellWidth*j+cellWidth/2;
+                        float physY = height - (cellHeight*i+cellHeight/2); // I want y pointed up
+                        
+                        VelocityVector vCell = vGrid->sampleVelocityAtPoint(physX, physY);
 
-                    float prevX = physX - dt*v.getVx();
-                    float prevY = physY - dt*v.getVy();
-                    std::map<uint, float> prevProps = sampleCellAtPoint(prevX, prevY);
-                    // printf("%f ", prevX);
-                    // std::cout << physX << " ";
-                    if ((prevX < 0) || (prevY < 0) || (prevX > width) || (prevY > height)) {
-                        newGrid[i][j].setMass(0);
-                    } else {
-                        // int prev_i = prevY / cellHeight;
-                        // int prev_j = prevX / cellWidth;
-                        if ((i == rows/2) && (j == cols/2 + 1)) {
-                            // printf("%f; %f, %f: %d, %d\n", cell.getMass(), prevX, prevY, prev_j, prev_i);
-                            // printf("%f\n", v.getVx());
+                        float prevX = physX - dt*vCell.getVx();
+                        float prevY = physY - dt*vCell.getVy();
+                        std::map<uint, float> prevProps = sampleCellAtPoint(prevX, prevY);
+                        // printf("%f ", prevX);
+                        // std::cout << physX << " ";
+                        if ((prevX < 0) || (prevY < 0) || (prevX > width) || (prevY > height)) {
+                            newGrid[i][j].setMass(0);
+
+                        } else {
+                            // int prev_i = prevY / cellHeight;
+                            // int prev_j = prevX / cellWidth;
+                            if ((i == rows/2) && (j == cols/2 + 1)) {
+                                // printf("%f; %f, %f: %d, %d\n", cell.getMass(), prevX, prevY, prev_j, prev_i);
+                                // printf("%f\n", v.getVx());
+                            }
+                            newGrid[i][j].setMass(prevProps[MASS]);
+                            // newGrid[i][j].setMass(grid[prev_i][prev_j].getMass());
+                            //  = grid[prev_i][prev_j];
+                            // newGrid[i][j].setLoc(i,j);
                         }
-                        newGrid[i][j].setMass(prevProps[MASS]);
-                        // newGrid[i][j].setMass(grid[prev_i][prev_j].getMass());
-                        //  = grid[prev_i][prev_j];
-                        // newGrid[i][j].setLoc(i,j);
+                    }
+                    if (i < rows) {
+                        // vxs of vgrid
+                        float vxPhysX = cellWidth*j;
+                        float vxPhysY = height - cellHeight*i - cellHeight/2;
+                        VelocityVector vVx = vGrid->sampleVelocityAtPoint(vxPhysX, vxPhysY);
+                        float prevVxX = vxPhysX - dt*vVx.getVx();
+                        float prevVxY = vxPhysY - dt*vVx.getVy();
+                        new_vGrid->setVx(i,j,vGrid->sampleVelocityAtPoint(prevVxX, prevVxY).getVx());
+                    }
+                    if (j < cols) {
+                        // vys of vgrid
+                        float vyPhysX = cellWidth*j + cellWidth/2;
+                        float vyPhysY = height - cellHeight*i;
+                        VelocityVector vVy = vGrid->sampleVelocityAtPoint(vyPhysX, vyPhysY);
+                        float prevVyX = vyPhysX - dt*vVy.getVx();
+                        float prevVyY = vyPhysY - dt*vVy.getVy();
+                        new_vGrid->setVy(i,j,vGrid->sampleVelocityAtPoint(prevVyX, prevVyY).getVy());
                     }
                 }
             }
+            grid = newGrid;
+            vGrid = new_vGrid;
             // printf("%f\n", getCell(rows/2,cols/2)->getVelocity().getVx());
         }
 
@@ -516,7 +556,7 @@ class FluidGrid {
                 
             // }
             nActive = activeCells.size();
-            grid = newGrid;
+            
             
             advect();
             // print("advected");
