@@ -1,5 +1,9 @@
 #include <cmath>
 #include <iostream>
+#include <SDL2/SDL.h>
+#include <cstdlib>
+#include <vector>
+#include <map>
 
 namespace consts {
     const float HMol = 2.408e-3;
@@ -35,6 +39,16 @@ namespace consts {
 const uint MASS = 0;
 const uint TEMPERATURE = 1;
 const uint PRESSURE = 2;
+// mouse modes
+const uint SMOKE = 0;
+const uint VELOCITY = 1;
+const uint SOURCE = 2;
+// source types
+const uint SMOKEGUN = 0;
+const uint POINTSOURCE = 1;
+const uint FAN = 2;
+
+const uint MAXSOURCES = 10;
 
 struct position {
     public:
@@ -46,7 +60,48 @@ class VelocityVector;
 class VelocityBox;
 class VelocityGrid;
 class FluidCell;
-class FluidGrid;
-class Simulator;
+class Source;
+class FluidGrid {
+    public:
+        FluidGrid(float width, float height, int r, int c);
+
+        FluidCell *getCell(int i, int j);
+
+        void freeGrid();
+
+        std::map<uint, float> sampleCellAtPoint(float x, float y);
+
+        void projection(int iters);
+
+        void advect();
+
+        void update(SDL_Event event);
+
+        std::vector<FluidCell*> getActive();
+        unsigned int nActive;
+        VelocityGrid *vGrid;
+        // if 0, mouse left click adds mass; if 1, mouse left click dragging
+        // changes velocities; if 2, mouse adds smokegun; if 3, mouse adds point
+        // source; if 4, mouse adds fan
+        uint mouseVelFlag = 0;
+        int buttonHeld = 0;
+        Sint32 prevMouseX = 0;
+        Sint32 prevMouseY = 0;
+    private:
+        float width, height;
+        float cellWidth, cellHeight;
+        float dt, maxV;
+        int rows, cols, cells;
+        FluidCell **grid;
+        FluidCell **newGrid;
+        std::vector<FluidCell*> activeCells;
+        float SCALE_H, SCALE_W;
+        
+        VelocityGrid *new_vGrid;
+        Source *sourceArray;
+        std::vector<Source*> sourceList;
+};
+  
+  class Simulator;
 
 

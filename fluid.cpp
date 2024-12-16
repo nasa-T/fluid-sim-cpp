@@ -1,12 +1,11 @@
 #include <cmath>
 #include <iostream>
 #include "fluid.h"
-#include <SDL2/SDL.h>
-#include <cstdlib>
+
 #include <map>
 #include <string>
-#include <vector>
-#include <vector>
+
+
 #include <algorithm>
 
 #include <GL/glew.h>
@@ -162,6 +161,18 @@ class VelocityGrid {
         void setVx(int i, int j, float vx) {
             vxArray[i][j] = vx;
         }
+        float getWidth() {
+            return width;
+        }
+        float getHeight() {
+            return height;
+        }
+        float getCellWidth() {
+            return cellWidth;
+        }
+        float getCellHeight() {
+            return cellHeight;
+        }
     private:
         float width, height;
         float cellWidth, cellHeight;
@@ -313,8 +324,126 @@ class FluidCell {
         // VelocityBox vBounds;
         Neighbors neighbors;
 };
+// class FluidGrid {
+//     public:
+//         FluidGrid(float width, float height, int r, int c): width(width), height(height), rows(r), cols(c) {}
+//         FluidCell *getCell(int i, int j) {
+//             return &grid[i][j];
+//         }
+//         private:
+//             float width, height;
+//             float cellWidth, cellHeight;
+//             float dt, maxV;
+//             int rows, cols, cells;
+//             FluidCell **grid;
+//             FluidCell **newGrid;
+//             std::vector<FluidCell*> activeCells;
+//             float SCALE_H, SCALE_W;
+            
+//             VelocityGrid *new_vGrid;
+//             std::vector<Source*> sourceList;
+// };
+class Source {
+    public:
+        Source(float _x, float _y, FluidGrid *g, VelocityGrid *vgrid, uint sourceType):  grid(g), vGrid(vgrid), type(sourceType) {
+            // x(_x), y(_y),
+            // int i, j;
+            // xs = _x;
+            // ys = _y;
+            setX(_x);
+            setY(_y);
+            switch (sourceType) {
+                case SMOKEGUN:
+                    i = floor((vgrid->getHeight() - ys) / vgrid->getCellHeight());
+                    j = floor(xs / vgrid->getCellWidth());
+                    grid->getCell(i,j)->addMass(100);
+                    break;
+                case FAN:
+                    break;
+                case POINTSOURCE:
+                    i = floor((vgrid->getHeight() - ys) / vgrid->getCellHeight());
+                    j = floor(xs / vgrid->getCellWidth());
+                    grid->getCell(i,j)->addMass(100);
+                    setVx(vgrid->getWidth()/4);
+                    setVy(vgrid->getHeight()/4);
+                    // vGrid->setVx(i,j,-vgrid->getWidth()/4);
+                    // vGrid->setVx(i,j+1,vgrid->getWidth()/4);
+                    // vGrid->setVy(i,j,vgrid->getWidth()/4);
+                    // vGrid->setVy(i+1,j,-vgrid->getWidth()/4);
+                    break;
+            }
+            // printf("source created\n");
+            // printf("source loc: %f, %f\n", getX(), getY());
+            // vgrid->setVx(i,j,vx);
+            // vgrid->setVx(i,j+1,vx);
+            // vgrid->setVy(i,j,vy);
+            // vgrid->setVy(i+1,j,vy);
+        }
+        void setX(float x) {
+            xs = x;
+        }
+        void setY(float y) {
+            ys = y;
+        }
+        float getX() {
+            return xs;
+        }
+        float getY() {
+            return ys;
+        }
+        float getVx() {
+            return vx;
+        }
+        float getVy() {
+            return vy;
+        }
+        void setVx(float v) {
+            // printf("x:%f, y:%f\n",xs,ys);
+            // printf("x:%f, y:%f\n",getX(),getY());
+            int i = floor((vGrid->getHeight() - ys) / vGrid->getCellHeight());
+            int j = floor(xs / vGrid->getCellWidth());
+            // printf("%d %d\n", i,j);
+            vx = v;
+            if (type == SMOKEGUN) {
+                vGrid->setVx(i,j,vx);
+            } else if (type == POINTSOURCE) {
+                vGrid->setVx(i,j,-vx);
+            }
+            vGrid->setVx(i,j+1,vx);
+        }
+        void setVy(float v) {
+            int i = floor((vGrid->getHeight() - ys) / vGrid->getCellHeight());
+            int j = floor(xs / vGrid->getCellWidth());
+            vy = v;
+            vGrid->setVy(i,j,vy);
+            if (type == SMOKEGUN) {
+                vGrid->setVy(i+1,j,vy);
+            } else if (type == POINTSOURCE) {
+                vGrid->setVy(i+1,j,-vy);
+            }
+        }
+        void addMass() {
+            int i = floor((vGrid->getHeight() - ys) / vGrid->getCellHeight());
+            int j = floor(xs / vGrid->getCellWidth());
+            if (getType() == POINTSOURCE) {
+                grid->getCell(i,j)->addMass(5);
+            } else if (getType() == SMOKEGUN) {
+                grid->getCell(i,j)->addMass(200);
+            }
+        }
+        uint getType() {
+            return type;
+        }
+    private:
+        uint type;
+        FluidGrid *grid;
+        VelocityGrid *vGrid;
+        float vx, vy = 0;
+        float xs, ys;
+        int i, j;
+};
 
-class FluidGrid {
+/*class FluidGrid {
     public:
         FluidGrid(float width, float height, int r, int c): width(width), height(height), rows(r), cols(c) {
             int i, j;
@@ -583,7 +712,9 @@ class FluidGrid {
 
         void update(SDL_Event event) {
             int i, j;
+            
             if ((event.type == SDL_MOUSEBUTTONDOWN) || (event.type != SDL_MOUSEBUTTONUP)) {
+                buttonHeld += 1;
                 SDL_MouseButtonEvent buttonEvent = event.button;
                 if (buttonEvent.button == SDL_BUTTON_RIGHT) {
                     mouseVelFlag = !mouseVelFlag;
@@ -599,24 +730,30 @@ class FluidGrid {
                     if (mouseVelFlag == 1) {
                         float vxMouse = (x - prevMouseX)*SCALE_W;
                         float vyMouse = -(y - prevMouseY)*SCALE_H;
-                        // printf("%f %f\n", vxMouse, vyMouse);
                         vGrid->setVx(i, j+1, vxMouse);
                         vGrid->setVx(i, j, vxMouse);
                         vGrid->setVy(i, j, vyMouse);
                         vGrid->setVy(i+1, j, vyMouse);
-                        // if (vxMouse > 0) {
-                        //     vGrid->setVx(i, j+1, vxMouse);
-                        // } else {
-                        //     vGrid->setVx(i, j, vxMouse);
-                        // }
-                        // if (vyMouse > 0) {
-                        //     vGrid->setVy(i, j, vyMouse);
-                        // } else {
-                        //     vGrid->setVy(i+1, j, vyMouse);
-                        // }
                     } else if (mouseVelFlag == 0) {
                         FluidCell *clickedCell = getCell(i, j);
                         clickedCell->addMass(100);
+                    } else if ((mouseVelFlag == 2) && (buttonHeld < 2)) {
+                        Source s = Source(x*SCALE_W, height-y*SCALE_H, this, vGrid, SMOKEGUN);
+                        sourceList.push_back(&s);
+                    } else if (mouseVelFlag == 3) {
+                        Source s = Source(x*SCALE_W, height-y*SCALE_H, this, vGrid, POINTSOURCE);
+                        sourceList.push_back(&s);
+                    }
+                } else {
+                    switch (event.key.keysym.sym) {
+                        case SDLK_1:
+                            mouseVelFlag = 2;
+                            break;
+                        case SDLK_2:
+                            mouseVelFlag = 3;
+                            break;
+                        case SDLK_3:
+                            mouseVelFlag = 4;
                     }
                 }
                 // FluidCell *clickedCell = getCell(i, j);
@@ -624,8 +761,28 @@ class FluidGrid {
                 // if (!clickedCell->isActive()) activeCells.push_back(clickedCell);
                 // clickedCell->addMass(100);
             } else if (event.type == SDL_MOUSEBUTTONUP) {
+                buttonHeld = 0;
+                if (mouseVelFlag == 2) {
+                    SDL_MouseButtonEvent buttonEvent = event.button;
+                    Sint32 x = buttonEvent.x;
+                    Sint32 y = buttonEvent.y;
+                    float vxMouse = (x - prevMouseX)*SCALE_W;
+                    float vyMouse = -(y - prevMouseY)*SCALE_H;
+                    Source *s = sourceList.back();
+                    s->setVx(vxMouse);
+                    s->setVy(vyMouse);
+                }
                 prevMouseX = 0;
                 prevMouseY = 0;
+            }
+            for (int i = 0; i < sourceList.size(); i++) {
+                Source *s = sourceList[i];
+                s->setVx(s->getVx());
+                s->setVy(s->getVy());
+                if ((s->getType() == SMOKEGUN) || (s->getType() == POINTSOURCE)) {
+                    s->addMass();
+                }
+                
             }
             // float totalMass = 0;
             nActive = activeCells.size();
@@ -680,8 +837,11 @@ class FluidGrid {
         }
         unsigned int nActive;
         VelocityGrid *vGrid;
-        // if 0, mouse left click adds mass; if 1, mouse left click dragging changes velocities
+        // if 0, mouse left click adds mass; if 1, mouse left click dragging
+        // changes velocities; if 2, mouse adds smokegun; if 3, mouse adds point
+        // source; if 4, mouse adds fan
         uint mouseVelFlag = 0;
+        int buttonHeld = 0;
         Sint32 prevMouseX = 0;
         Sint32 prevMouseY = 0;
     private:
@@ -695,7 +855,434 @@ class FluidGrid {
         float SCALE_H, SCALE_W;
         
         VelocityGrid *new_vGrid;
-};
+        std::vector<Source*> sourceList;
+};*/
+
+// class FluidGrid {
+//     public:
+        FluidGrid::FluidGrid(float width, float height, int r, int c): width(width), height(height), rows(r), cols(c) {
+            int i, j;
+            cells = rows * cols;
+            grid = (FluidCell **) malloc(sizeof(FluidCell*)*r);
+            newGrid = (FluidCell **) malloc(sizeof(FluidCell*)*r);
+            vGrid = (VelocityGrid *) malloc(sizeof(VelocityGrid));
+            vGrid[0] = VelocityGrid(width, height, r, c);
+            new_vGrid = (VelocityGrid *) malloc(sizeof(VelocityGrid));
+            new_vGrid[0] = VelocityGrid(width, height, r, c);
+            sourceArray = (Source *) malloc(MAXSOURCES*sizeof(Source));
+            cellWidth = width / c;
+            cellHeight = height / r;
+            // in meters per pixel
+            SCALE_H = height / consts::GRID_HEIGHT;
+            SCALE_W = width / consts::GRID_WIDTH;
+            maxV = 0;
+            for (i = 0; i < rows; i++) {
+                grid[i] = (FluidCell *) malloc(sizeof(FluidCell)*c);
+                newGrid[i] = (FluidCell *) malloc(sizeof(FluidCell)*c);
+                for (j = 0; j < cols; j++) {
+                    //random mass for now
+                    // float mass = std::rand() % 256;
+                    grid[i][j] = FluidCell(0, cellWidth, cellHeight, 100);
+                    if (i == rows/2+1 && j == cols/2) {
+                        // grid[i][j] = FluidCell(100, cellWidth, cellHeight, 100);
+                        // vGrid->setVy(i,j, 50);
+                        // vGrid->setVx(i,j, -5);
+                        // vGrid->setVy(i-1,j, 5);
+                        // grid[i][j].setVelocity(VelocityVector(10,0));
+                    }
+                    // } else if (i == rows/2 && j == cols/2+1) {
+                    //     grid[i][j] = FluidCell(0, cellWidth, cellHeight, 100);
+                    //     // grid[i][j].setVelocity(VelocityVector(10,0));
+                    // } else {
+                    //     grid[i][j] = FluidCell(0, cellWidth, cellHeight, 100);
+                    // }
+                    if (i != 0) {
+                        grid[i][j].setTop(&grid[i - 1][j]);
+                        grid[i - 1][j].setBottom(&grid[i][j]);
+                    }
+                    if (j != 0) {
+                        grid[i][j].setLeft(&grid[i][j - 1]);
+                        grid[i][j - 1].setRight(&grid[i][j]);
+                    }
+                    if (grid[i][j].isActive()) {
+                        activeCells.push_back(&grid[i][j]);
+                    }
+                    if (grid[i][j].getVelocity().getMag() > maxV) {
+                        maxV = grid[i][j].getVelocity().getMag();
+                    }
+                    grid[i][j].setLoc(i, j);
+                    newGrid[i][j] = grid[i][j];
+                    new_vGrid->setVx(i,j,vGrid->getVx(i,j));
+                    new_vGrid->setVy(i,j,vGrid->getVy(i,j));
+                }
+            }
+            dt = 0.05;
+            // 0.7/maxV;
+            nActive = activeCells.size();
+        }
+
+        FluidCell *FluidGrid::getCell(int i, int j) {
+            return &grid[i][j];
+        }
+
+        void FluidGrid::freeGrid() {
+            int i, j;
+            for (i = 0; i < rows; i++) {
+                free(grid[i]);
+            }
+            free(grid);
+        }
+
+        std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
+            // y = round(y);
+            // float cHeight = round(cellHeight);
+            // printf("%f\n", round(height - y - cellHeight/2));
+            // need switch statements for sampled property "prop"
+            int i = ceil((height - y - cellHeight/2) / cellHeight);
+            int j = floor((x - cellWidth/2) / cellWidth);
+            if ((i == rows/2) && (j == cols/2)) {
+                // printf("%d: %f %d: %f\n", j,x, i,y);
+                // printf("%f %f\n", prevY, physY);
+            }
+            // switch (prop) {
+            //     case MASS:
+
+            // }
+
+            // the physical positions relative to nearest box of cells
+            float X, Y; 
+            X = fmod(x+cellWidth/2, cellWidth)/cellWidth;
+            Y = fmod(y+cellHeight/2, cellHeight)/cellHeight;
+
+            // will throw an error for when x and y are off the grid entirely
+            std::map<uint, float> p10, p00, p01, p11;
+            if ((j > -1) && (i < rows)) {
+                // printf("%d %d\n", j, i);
+                // p10 = vyArray[i][j];
+                FluidCell *cell = getCell(i,j);
+                p10[MASS] = cell->getMass();
+                p10[TEMPERATURE] = cell->getTemp();
+                p10[PRESSURE] = cell->getPressure();
+            } else {
+                p10[MASS] = 0;
+                p10[TEMPERATURE] = 0;
+                p10[PRESSURE] = 0;
+            }
+            if ((j > -1) && (i > 0)) {
+                // p00 = vyArray[i-1][j];
+                FluidCell *cell = getCell(i-1,j);
+                p00[MASS] = cell->getMass();
+                p00[TEMPERATURE] = cell->getTemp();
+                p00[PRESSURE] = cell->getPressure();
+            } else {
+                p00[MASS] = 0;
+                p00[TEMPERATURE] = 0;
+                p00[PRESSURE] = 0;
+            }
+            if ((j < cols-1) && (i > 0)) {
+                // p01 = vyArray[i-1][j+1];
+                FluidCell *cell = getCell(i-1,j+1);
+                p01[MASS] = cell->getMass();
+                p01[TEMPERATURE] = cell->getTemp();
+                p01[PRESSURE] = cell->getPressure();
+            } else {
+                p01[MASS] = 0;
+                p01[TEMPERATURE] = 0;
+                p01[PRESSURE] = 0;
+            }
+            if ((j < cols-1) && (i < rows)) {
+                // p11 = vyArray[i][j+1];
+                FluidCell *cell = getCell(i,j+1);
+                p11[MASS] = cell->getMass();
+                p11[TEMPERATURE] = cell->getTemp();
+                p11[PRESSURE] = cell->getPressure();
+            } else {
+                p11[MASS] = 0;
+                p11[TEMPERATURE] = 0;
+                p11[PRESSURE] = 0;
+            }
+            // printf("%f %f %f %f\n", p10[MASS], p00[MASS], p01[MASS], p11[MASS]);
+            std::map<uint, float> props;
+            props[MASS] = (1-X)*(1-Y)*p10[MASS] + X*(1-Y)*p11[MASS] + (1-X)*Y*p00[MASS] + X*Y*p01[MASS];
+            // printf("%f\n", props[MASS]);
+            props[TEMPERATURE] = (1-X)*(1-Y)*p10[TEMPERATURE] + X*(1-Y)*p11[TEMPERATURE] + (1-X)*Y*p00[TEMPERATURE] + X*Y*p01[TEMPERATURE];
+            props[PRESSURE] = (1-X)*(1-Y)*p10[PRESSURE] + X*(1-Y)*p11[PRESSURE] + (1-X)*Y*p00[PRESSURE] + X*Y*p01[PRESSURE];
+
+            return props;
+        }
+
+        void FluidGrid::projection(int iters) {
+            int i, j;
+            for (int n = 0; n < iters; n++) {
+                for (i = 0; i < rows; i++) {
+                    for (j = 0; j < cols; j++) {
+                        // printf("%d %d\n", i, j);
+                        int sLeft = !!j;
+                        int sRight = !!(cols - 1 - j);
+                        int sTop = !!i;
+                        int sBottom = !!(rows - 1 - i);                        
+                        // printf("%d %d %d %d\n", sLeft, sRight, sTop, sBottom);
+                        int s = sLeft + sRight + sTop + sBottom;
+                        // printf("%d\n", s);
+                        // if ((i > 0) && (i < rows -1) && (j > 0) && (j < cols - 1)) {
+                        float left = vGrid->getVx(i, j);
+                        float right = vGrid->getVx(i, j+1);
+                        float top = vGrid->getVy(i, j);
+                        float bottom = vGrid->getVy(i+1, j);
+                        float d = -left + right + top - bottom;
+
+                        // if ((i == rows/2+1) && (j == cols/2)) {
+                        //     printf("%f %f %f %f\n", left, right, top, bottom);
+                        //     printf("%d %d %d %d\n", sLeft, sRight, sTop, sBottom);
+                        //     printf("%f\n", d);
+                        // }
+                        vGrid->setVx(i, j, left+d*sLeft/s);
+                        vGrid->setVx(i, j+1, right-d*sRight/s);
+                        vGrid->setVy(i, j, top-d*sTop/s);
+                        vGrid->setVy(i+1, j, bottom+d*sBottom/s);
+                        // } else if ()
+                    }
+                }
+            }
+        }
+
+        void FluidGrid::advect() {
+            int i, j;
+            for (i = 0; i < rows+1; i++) {
+                for (j = 0; j < cols+1; j++) {
+                    if ((i < rows) && (j < cols)) {
+                        FluidCell cell = *getCell(i,j);
+                        if ((i == rows/2) && (j == cols/2)) {
+                            // printf("%f\n", cell.getMass());
+                            // printf("%f %f\n", prevY, physY);
+                        }
+                        // VelocityVector v = cell.getVelocity();
+                        float physX = cellWidth*j+cellWidth/2;
+                        float physY = height - (cellHeight*i+cellHeight/2); // I want y pointed up
+                        // printf("%f %f\n", physX, physY);
+                        VelocityVector vCell = vGrid->sampleVelocityAtPoint(physX, physY);
+                        if ((i == rows/2) && (j == cols/2)) {
+                            // printf("%f\n", cell.getMass());
+                            // printf("%f %f\n", vCell.getVx(), vCell.getVy());
+                        }
+                        // printf("%f %f\n", vCell.getVx(), vCell.getVy());
+                        float prevX = physX - dt*vCell.getVx();
+                        float prevY = physY - dt*vCell.getVy();
+                        std::map<uint, float> prevProps;
+                        if (round(vCell.getVx()+vCell.getVy()) == 0) {
+                            prevProps[MASS] = cell.getMass();
+                            prevProps[TEMPERATURE] = cell.getTemp();
+                            prevProps[PRESSURE] = cell.getPressure();
+                        } else {
+                            // printf("%f %f\n", prevX, prevY);
+                            prevProps = sampleCellAtPoint(prevX, prevY);
+                        }
+                        // printf("%f\n", prevProps[MASS]);
+                        if ((i == rows/2) && (j == cols/2)) {
+                            // printf("%f\n", prevProps[MASS]);
+                            // printf("%f %f\n", prevY, physY);
+                        }
+                        // printf("%f ", prevX);
+                        // std::cout << physX << " ";
+                        if ((prevX < 0) || (prevY < 0) || (prevX > width) || (prevY > height)) {
+                            newGrid[i][j].setMass(0);
+
+                        } else {
+                            // int prev_i = prevY / cellHeight;
+                            // int prev_j = prevX / cellWidth;
+                            if ((i == rows/2) && (j == cols/2 + 1)) {
+                                // printf("%f; %f, %f: %d, %d\n", cell.getMass(), prevX, prevY, prev_j, prev_i);
+                                // printf("%f\n", v.getVx());
+                            }
+                            newGrid[i][j].setMass(prevProps[MASS]);
+                            // newGrid[i][j].setMass(grid[prev_i][prev_j].getMass());
+                            //  = grid[prev_i][prev_j];
+                            // newGrid[i][j].setLoc(i,j);
+                        }
+                    }
+                    if (i < rows) {
+                        // vxs of vgrid
+                        float vxPhysX = cellWidth*j;
+                        float vxPhysY = height - cellHeight*i - cellHeight/2;
+                        VelocityVector vVx = vGrid->sampleVelocityAtPoint(vxPhysX, vxPhysY);
+                        float prevVxX = vxPhysX - dt*vVx.getVx();
+                        float prevVxY = vxPhysY - dt*vVx.getVy();
+                        new_vGrid->setVx(i,j,vGrid->sampleVelocityAtPoint(prevVxX, prevVxY).getVx());
+                    }
+                    if (j < cols) {
+                        // vys of vgrid
+                        float vyPhysX = cellWidth*j + cellWidth/2;
+                        float vyPhysY = height - cellHeight*i;
+                        VelocityVector vVy = vGrid->sampleVelocityAtPoint(vyPhysX, vyPhysY);
+                        float prevVyX = vyPhysX - dt*vVy.getVx();
+                        float prevVyY = vyPhysY - dt*vVy.getVy();
+                        new_vGrid->setVy(i,j,vGrid->sampleVelocityAtPoint(prevVyX, prevVyY).getVy());
+                        
+                    }
+                }
+            }
+            grid = newGrid;
+            vGrid = new_vGrid;
+            // printf("%f\n", getCell(rows/2,cols/2)->getVelocity().getVx());
+        }
+
+        void FluidGrid::update(SDL_Event event) {
+            int i, j;
+            
+            if ((event.type == SDL_MOUSEBUTTONDOWN) || (event.type != SDL_MOUSEBUTTONUP)) {
+                if (sourceList.size() > 0) {
+                    // printf("post-source: %d %f\n", buttonHeld, sourceList.back()->getVx());
+                }
+                
+                SDL_MouseButtonEvent buttonEvent = event.button;
+                if (buttonEvent.button == SDL_BUTTON_RIGHT) {
+                    mouseVelFlag = !mouseVelFlag;
+                } else if (buttonEvent.button == SDL_BUTTON_LEFT) {
+                    // printf("button left clicked\n");
+                    buttonHeld += 1;
+                    Sint32 x = buttonEvent.x;
+                    Sint32 y = buttonEvent.y;
+                    if ((prevMouseX == 0) || (prevMouseY == 0)) {
+                        prevMouseX = x;
+                        prevMouseY = y;
+                    }
+                    i = y * SCALE_H / cellHeight;
+                    j = x * SCALE_W / cellWidth;
+                    if (mouseVelFlag == 1) {
+                        float vxMouse = (x - prevMouseX)*SCALE_W;
+                        float vyMouse = -(y - prevMouseY)*SCALE_H;
+                        vGrid->setVx(i, j+1, vxMouse);
+                        vGrid->setVx(i, j, vxMouse);
+                        vGrid->setVy(i, j, vyMouse);
+                        vGrid->setVy(i+1, j, vyMouse);
+                    } else if (mouseVelFlag == 0) {
+                        FluidCell *clickedCell = getCell(i, j);
+                        clickedCell->addMass(100);
+                    } else if ((mouseVelFlag == 2) && (buttonHeld < 2) && (sourceList.size() < MAXSOURCES)) {
+                        // printf("loc: %f %f\n", x*SCALE_W, height-y*SCALE_H);
+                        // Source *s;
+                        // int sourceArrayLen = sizeof(*sourceArray)/sizeof(Source);
+                        sourceArray[sourceList.size()] = Source(x*SCALE_W, height-y*SCALE_H, this, vGrid, SMOKEGUN);
+                        // printf("%f %f\n", sourceArray[0].getX(), sourceArray[0].getY());
+                        sourceList.push_back(&sourceArray[sourceList.size()]);
+                        // printf("loc: %f %f\n", sourceList[0]->getX(), sourceList[0]->getY());
+                        // printf("pushed\n");
+                        
+                    } else if ((mouseVelFlag == 3) && (buttonHeld < 2) && (sourceList.size() < MAXSOURCES)) {
+                        // Source s = Source(x*SCALE_W, height-y*SCALE_H, this, vGrid, POINTSOURCE);
+                        sourceArray[sourceList.size()] = Source(x*SCALE_W, height-y*SCALE_H, this, vGrid, POINTSOURCE);
+                        // printf("pushing\n");
+                        sourceList.push_back(&sourceArray[sourceList.size()]);
+                        // printf("pushed\n");
+                    }
+                } else if (event.key.type == SDL_KEYDOWN) {
+                    // printf("key clicked\n");
+                    switch (event.key.keysym.sym) {
+                        case SDLK_1:
+                            mouseVelFlag = 2;
+                            // printf("%d\n", mouseVelFlag);
+                            break;
+                        case SDLK_2:
+                            mouseVelFlag = 3;
+                            // printf("%d\n", mouseVelFlag);
+                            break;
+                        case SDLK_3:
+                            mouseVelFlag = 4;
+                    }
+                } else if (sourceList.size() > 0) {
+                    // printf("%d %f\n", buttonHeld, sourceList.back()->getVx());
+                }
+                // FluidCell *clickedCell = getCell(i, j);
+                // printf("%f\n", clickedCell->getMass());
+                // if (!clickedCell->isActive()) activeCells.push_back(clickedCell);
+                // clickedCell->addMass(100);
+            } else if (event.type == SDL_MOUSEBUTTONUP) {
+                // printf("mouse up\n");
+                buttonHeld = 0;
+                if (mouseVelFlag == 2) {
+                    SDL_MouseButtonEvent buttonEvent = event.button;
+                    Sint32 x = buttonEvent.x;
+                    Sint32 y = buttonEvent.y;
+                    float vxMouse = (x - prevMouseX)*SCALE_W;
+                    float vyMouse = -(y - prevMouseY)*SCALE_H;
+                    Source *s = sourceList.back();
+                    // printf("type: %d\n", s->getType());
+                    // printf("%f %f\n", vxMouse, vyMouse);
+                    // printf("loc before set: %f %f\n", s->getX(), s->getY());
+                    s->setVx(vxMouse);
+                    // printf("%f\n", s->getVx());
+                    s->setVy(vyMouse);
+                }
+                prevMouseX = 0;
+                prevMouseY = 0;
+            }
+            for (int i = 0; i < sourceList.size(); i++) {
+                // printf("sourcing\n");
+                Source *s = sourceList[i];
+                if (s->getVx()*s->getVy() != 0) {
+                    // printf("%d \n",sourceList.size());
+                    // float vx = s->getVx();
+                    // printf("get vx\n");
+                    s->setVx(s->getVx());
+                    // printf("set vx\n");
+                    s->setVy(s->getVy());
+                    // printf("set vy\n");
+                    if ((s->getType() == SMOKEGUN) || (s->getType() == POINTSOURCE)) {
+                        s->addMass();
+                    }
+                }
+            }
+            // float totalMass = 0;
+            nActive = activeCells.size();
+            // activeCells.clear();
+            // int i, j;
+            // for (i = 0; i < rows; i++) {
+            //     for (j = 0; j < cols; j++) {
+            //         if (getCell(i, j)->isActive()) {
+            //             activeCells.push_back(getCell(i, j));
+            //         }
+            //     }
+            // }
+            // for (i = 0; i < nActive; i++) {
+            //     FluidCell *cell = activeCells[i];
+            //     float initialMass = cell->getMass();
+                
+            //     cell->transferMass(cell->getBottom(), 5);
+            //     totalMass += cell->getMass();
+            //     if (!cell->isActive()) activeCells.erase(activeCells.begin() + i);
+            //     if (!initialMass && !!cell->getMass()) {
+            //         if ((cell->getBottom() != NULL) && (cell->getBottom()->getMass() == 0)) activeCells.push_back(cell->getBottom());
+            //         if ((cell->getTop() != NULL) && (cell->getTop()->getMass() == 0)) activeCells.push_back(cell->getTop());
+            //         if ((cell->getLeft() != NULL) && (cell->getLeft()->getMass() == 0)) activeCells.push_back(cell->getLeft());
+            //         if ((cell->getRight() != NULL) && (cell->getRight()->getMass() == 0)) activeCells.push_back(cell->getRight());
+            //         // if ((cell->getBottom() != NULL) && (cell->getBottom()->isActive())) activeCells.push_back(cell->getBottom());
+            //         // if ((cell->getTop() != NULL) && (cell->getTop()->isActive())) activeCells.push_back(cell->getTop());
+            //         // if ((cell->getLeft() != NULL) && (cell->getLeft()->isActive())) activeCells.push_back(cell->getLeft());
+            //         // if ((cell->getRight() != NULL) && (cell->getRight()->isActive())) activeCells.push_back(cell->getRight());
+            //     }
+                
+            // }
+            nActive = activeCells.size();
+            
+            projection(4);
+            advect();
+            // print("advected");
+            // printf("%f\n", maxV);
+            // for (i = 0; i < rows; i++) {
+            //     for (j = 0; j < cols; j++) {
+            //         //random mass for now
+            //         FluidCell *cell = getCell(i, j);
+            //         // cell->transferMass(cell->getRight(), 5);
+            //         cell->transferMass(cell->getBottom(), 5);
+            //         totalMass += cell->getMass();
+            //         // cell->setMass(cell->getMass()-5);
+            //     }
+            // }
+        }
+
+        std::vector<FluidCell*> FluidGrid::getActive() {
+            return activeCells;
+        }
 
 class Simulator {
     public:
