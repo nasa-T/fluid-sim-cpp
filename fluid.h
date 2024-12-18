@@ -63,7 +63,7 @@ class FluidCell;
 class Source;
 class FluidGrid {
     public:
-        FluidGrid(float width, float height, int r, int c);
+        FluidGrid(float width, float height, int r, int c, float dt);
 
         FluidCell *getCell(int i, int j);
 
@@ -78,6 +78,10 @@ class FluidGrid {
         void update(SDL_Event event);
 
         std::vector<FluidCell*> getActive();
+
+        float getdt() {
+            return dt;
+        }
         unsigned int nActive;
         VelocityGrid *vGrid;
         // if 0, mouse left click adds mass; if 1, mouse left click dragging
