@@ -217,8 +217,9 @@ class FluidCell {
             neighbors = Neighbors();
         }
 
-        float getMass() {
-            return mass;
+        float getMass(bool smoke=true) {
+            if (smoke) return smokeMass;
+            else return mass;
         }
         float getSize() {
             return size;
@@ -232,27 +233,39 @@ class FluidCell {
         float getPressure() {
             return pressure;
         }
-        void setMass(float m) {
-            if (m >= 0) mass = m;
+        void setMass(float m, bool smoke=true) {
+            if (m >= 0) {
+                if (smoke) smokeMass = m;
+                else mass = m;
+            }
             // setColor(mass*r, mass*g, mass*b);
         }
-        void addMass(float m) {
-            setMass(mass + m);
+        void addMass(float m, bool smoke=true) {
+            setMass(mass + m, smoke);
         }
         std::vector<float> getColor() {
             return std::vector<float> {r, g, b};
         }
-        void setColor(float red, float green, float blue) {
+        void setColor(float red, float green, float blue, bool source=false) {
             float tot = red + green + blue;
-            if ((tot == 0) || (mass == 0)) {
-                r = 0;
-                g = 0;
-                b = 0;
-            } else {
-                r = red/tot;
-                g = green/tot;
-                b = blue/tot;
-            }
+            // if (source) {
+            //     r = red/tot;
+            //     g = green/tot;
+            //     b = blue/tot;
+            //     return;
+            // }
+            // if ((tot == 0) || (mass == 0)) {
+            //     r = 0;
+            //     g = 0;
+            //     b = 0;
+            // } else {
+            //     r = red/tot;
+            //     g = green/tot;
+            //     b = blue/tot;
+            // }
+            r = red;
+            g = green;
+            b = blue;
         }
 
         FluidCell *getRight() {
@@ -343,7 +356,7 @@ class FluidCell {
         }
 
     private:
-        float mass, size, density, temperature, pressure, width, height;
+        float mass, size, density, temperature, pressure, width, height, smokeMass;
         int row, col;
         VelocityVector velocity;
         // VelocityBox vBounds;
@@ -430,11 +443,6 @@ class Source {
             return vy;
         }
         void setVx(float v) {
-            // printf("x:%f, y:%f\n",xs,ys);
-            // printf("x:%f, y:%f\n",getX(),getY());
-            // int i = floor((vGrid->getHeight() - ys) / vGrid->getCellHeight());
-            // int j = floor(xs / vGrid->getCellWidth());
-            // printf("%d %d\n", i,j);
             vx = v;
             if (type == SMOKEGUN) {
                 vGrid->setVx(i,j,vx);
@@ -444,8 +452,6 @@ class Source {
             vGrid->setVx(i,j+1,vx);
         }
         void setVy(float v) {
-            // int i = floor((vGrid->getHeight() - ys) / vGrid->getCellHeight());
-            // int j = floor(xs / vGrid->getCellWidth());
             vy = v;
             vGrid->setVy(i,j,vy);
             if (type == SMOKEGUN) {
@@ -455,17 +461,15 @@ class Source {
             }
         }
         void addMass() {
-            // int i = floor((vGrid->getHeight() - ys) / vGrid->getCellHeight());
-            // int j = floor(xs / vGrid->getCellWidth());
             float v = std::sqrt(vx*vx+vy*vy);
-            float cellSize = std::sqrt(vGrid->getCellHeight() * vGrid->getCellWidth());
+            float cellSize = vGrid->getCellHeight() * vGrid->getCellWidth();
+            grid->getCell(i,j)->setColor(r,g,b,true);
             if (getType() == POINTSOURCE) {
-                
                 grid->getCell(i,j)->addMass(0.5*v/cellSize);
             } else if (getType() == SMOKEGUN) {
-                grid->getCell(i,j)->addMass(20*v/cellSize);
+                grid->getCell(i,j)->addMass(20*v*v/cellSize);
             }
-            grid->getCell(i,j)->setColor(r,g,b);
+            
         }
         uint getType() {
             return type;
@@ -503,10 +507,10 @@ FluidGrid::FluidGrid(float width, float height, int r, int c, float dt): width(w
             //random mass for now
             // float mass = std::rand() % 256;
             std::vector<uint> color = {0, 0, 0};
-            grid[i][j] = FluidCell(0, cellWidth, cellHeight, 100, 0,0,0);
+            grid[i][j] = FluidCell(100, cellWidth, cellHeight, 100, 0,0,0);
             if (i == rows/2 && j == cols/2) {
                 // std::vector<uint> color = {100, 100, 0};
-                grid[i][j] = FluidCell(100, cellWidth, cellHeight, 100, 1,1,0);
+                // grid[i][j] = FluidCell(100, cellWidth, cellHeight, 100, 1,1,0);
                 // vGrid->setVy(i,j, 50);
                 // vGrid->setVx(i,j, -5);
                 // vGrid->setVy(i-1,j, 5);
@@ -584,9 +588,12 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
         p10[MASS] = cell->getMass();
         p10[TEMPERATURE] = cell->getTemp();
         p10[PRESSURE] = cell->getPressure();
-        p10[R] = cell->getColor()[0]*p10[MASS];
-        p10[G] = cell->getColor()[1]*p10[MASS];
-        p10[B] = cell->getColor()[2]*p10[MASS];
+        // p10[R] = cell->getColor()[0]*p10[MASS];
+        // p10[G] = cell->getColor()[1]*p10[MASS];
+        // p10[B] = cell->getColor()[2]*p10[MASS];
+        p10[R] = cell->getColor()[0];
+        p10[G] = cell->getColor()[1];
+        p10[B] = cell->getColor()[2];
     } else {
         p10[MASS] = 0;
         p10[TEMPERATURE] = 0;
@@ -601,9 +608,12 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
         p00[MASS] = cell->getMass();
         p00[TEMPERATURE] = cell->getTemp();
         p00[PRESSURE] = cell->getPressure();
-        p00[R] = cell->getColor()[0]*p00[MASS];
-        p00[G] = cell->getColor()[1]*p00[MASS];
-        p00[B] = cell->getColor()[2]*p00[MASS];
+        // p00[R] = cell->getColor()[0]*p00[MASS];
+        // p00[G] = cell->getColor()[1]*p00[MASS];
+        // p00[B] = cell->getColor()[2]*p00[MASS];
+        p00[R] = cell->getColor()[0];
+        p00[G] = cell->getColor()[1];
+        p00[B] = cell->getColor()[2];
     } else {
         p00[MASS] = 0;
         p00[TEMPERATURE] = 0;
@@ -618,9 +628,12 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
         p01[MASS] = cell->getMass();
         p01[TEMPERATURE] = cell->getTemp();
         p01[PRESSURE] = cell->getPressure();
-        p01[R] = cell->getColor()[0]*p01[MASS];
-        p01[G] = cell->getColor()[1]*p01[MASS];
-        p01[B] = cell->getColor()[2]*p01[MASS];
+        // p01[R] = cell->getColor()[0]*p01[MASS];
+        // p01[G] = cell->getColor()[1]*p01[MASS];
+        // p01[B] = cell->getColor()[2]*p01[MASS];
+        p01[R] = cell->getColor()[0];
+        p01[G] = cell->getColor()[1];
+        p01[B] = cell->getColor()[2];
     } else {
         p01[MASS] = 0;
         p01[TEMPERATURE] = 0;
@@ -635,9 +648,12 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
         p11[MASS] = cell->getMass();
         p11[TEMPERATURE] = cell->getTemp();
         p11[PRESSURE] = cell->getPressure();
-        p11[R] = cell->getColor()[0]*p11[MASS];
-        p11[G] = cell->getColor()[1]*p11[MASS];
-        p11[B] = cell->getColor()[2]*p11[MASS];
+        // p11[R] = cell->getColor()[0]*p11[MASS];
+        // p11[G] = cell->getColor()[1]*p11[MASS];
+        // p11[B] = cell->getColor()[2]*p11[MASS];
+        p11[R] = cell->getColor()[0];
+        p11[G] = cell->getColor()[1];
+        p11[B] = cell->getColor()[2];
     } else {
         p11[MASS] = 0;
         p11[TEMPERATURE] = 0;
@@ -863,7 +879,7 @@ void FluidGrid::update(SDL_Event event) {
     }
     for (int i = 0; i < sourceList.size(); i++) {
         Source *s = sourceList[i];
-        if (s->getVx()*s->getVy() != 0) {
+        if ((s->getVx() != 0) || (s->getVy() != 0)) {
             s->setVx(s->getVx());
             s->setVy(s->getVy());
             if ((s->getType() == SMOKEGUN) || (s->getType() == POINTSOURCE)) {
@@ -959,6 +975,9 @@ class Simulator {
                 for (j = 0; j < cols; j++) {
             // for (i = 0; i < grid->nActive; i++) {
                     float mass = grid->getCell(i,j)->getMass();
+                    if (mass > maxMass) {
+                        maxMass = mass;
+                    }
                     // float mass = grid->getActive()[i]->getMass();
                     // FluidCell *cell = grid->getActive()[i];
                     std::vector<float> color = grid->getCell(i,j)->getColor();
@@ -972,9 +991,9 @@ class Simulator {
                     //     mass = 255;
                     // }
                     // if (!cell->isActive()) SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-                    uint red = std::min((float)255, color[0]*mass);
-                    uint green = std::min((float)255, color[1]*mass);
-                    uint blue = std::min((float)255, color[2]*mass);
+                    uint red = std::min((float)255, 255*color[0]*std::sqrt(mass/maxMass));
+                    uint green = std::min((float)255, 255*color[1]*std::sqrt(mass/maxMass));
+                    uint blue = std::min((float)255, 255*color[2]*std::sqrt(mass/maxMass));
                     SDL_SetRenderDrawColor(renderer, red, green, blue, 255);
                     // SDL_SetRenderDrawColor(renderer, mass, mass, 0, 255);
                     SDL_RenderFillRect(renderer, &rect);
@@ -1003,7 +1022,7 @@ class Simulator {
         SDL_Renderer *renderer = NULL;
         SDL_Window *window = NULL;
         SDL_Surface *screenSurface;
-        
+        float maxMass=255;
         
 };
 
