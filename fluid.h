@@ -39,6 +39,9 @@ namespace consts {
 const uint MASS = 0;
 const uint TEMPERATURE = 1;
 const uint PRESSURE = 2;
+const uint R = 3;
+const uint G = 4;
+const uint B = 5;
 // mouse modes
 const uint SMOKE = 0;
 const uint VELOCITY = 1;
@@ -100,7 +103,7 @@ class FluidGrid {
         FluidCell **newGrid;
         std::vector<FluidCell*> activeCells;
         float SCALE_H, SCALE_W;
-        
+        std::vector<uint> color = {1,1,0};
         VelocityGrid *new_vGrid;
         Source *sourceArray;
         std::vector<Source*> sourceList;
