@@ -233,6 +233,9 @@ class FluidCell {
         float getPressure() {
             return pressure;
         }
+        void setPressure(float p) {
+            pressure = p;
+        }
         void setMass(float m, bool smoke=true) {
             if (m >= 0) {
                 if (smoke) smokeMass = m;
@@ -685,6 +688,8 @@ void FluidGrid::projection(int iters) {
     for (int n = 0; n < iters; n++) {
         for (i = 0; i < rows; i++) {
             for (j = 0; j < cols; j++) {
+                FluidCell *cell = getCell(i,j);
+                
                 // printf("%d %d\n", i, j);
                 int sLeft = !!j;
                 int sRight = !!(cols - 1 - j);
@@ -699,7 +704,12 @@ void FluidGrid::projection(int iters) {
                 float top = vGrid->getVy(i, j);
                 float bottom = vGrid->getVy(i+1, j);
                 float d = -left + right + top - bottom;
-
+                if (n == 0) {
+                    cell->setPressure(0);
+                } else {
+                    float newPressure = cell->getPressure() + d/s * cell->getDensity()*std::sqrt(cellWidth*cellHeight)/dt;
+                    cell->setPressure(newPressure);
+                }
                 // if ((i == rows/2+1) && (j == cols/2)) {
                 //     printf("%f %f %f %f\n", left, right, top, bottom);
                 //     printf("%d %d %d %d\n", sLeft, sRight, sTop, sBottom);
@@ -857,6 +867,9 @@ void FluidGrid::update(SDL_Event event) {
                 case SDLK_y:
                     color = std::vector<uint> {1,1,0};
                     break;
+                case SDLK_p:
+                    pressureDisplay = !(pressureDisplay);
+                    break;
             }
 
 
@@ -938,6 +951,22 @@ std::vector<FluidCell*> FluidGrid::getActive() {
     return activeCells;
 }
 
+void FluidGrid::force(int i, int j, float fx, float fy) {
+    FluidCell *cell = getCell(i,j);
+    float mass = cell->getMass(false);
+    if (mass == 0) return; // nothing to force if mass is zero
+    float vxL = vGrid->getVx(i,j);
+    float vxR = vGrid->getVx(i,j+1);
+    float vyU = vGrid->getVy(i,j);
+    float vyB = vGrid->getVy(i+1,j);
+    float ax = fx / mass;
+    float ay = fy / mass;
+    vGrid->setVx(i,j,vxL+ax*dt);
+    vGrid->setVx(i,j+1,vxR+ax*dt);
+    vGrid->setVy(i,j,vyU+ay*dt);
+    vGrid->setVy(i+1,j,vyB+ay*dt);
+}
+
 class Simulator {
     public:
         Simulator(float width, float height, int c, int r): width(width), height(height), rows(r), cols(c) {
@@ -973,30 +1002,43 @@ class Simulator {
             int i, j;
             for (i = 0; i < rows; i++) {
                 for (j = 0; j < cols; j++) {
+                    
             // for (i = 0; i < grid->nActive; i++) {
                     float mass = grid->getCell(i,j)->getMass();
                     if (mass > maxMass) {
                         maxMass = mass;
                     }
-                    // float mass = grid->getActive()[i]->getMass();
-                    // FluidCell *cell = grid->getActive()[i];
-                    std::vector<float> color = grid->getCell(i,j)->getColor();
-                    SDL_Rect rect{j*consts::GRID_WIDTH/cols,i*consts::GRID_HEIGHT/rows,(j+1)*consts::GRID_WIDTH/cols,(i+1)*consts::GRID_HEIGHT/rows};
-                    if ((i == rows/2) && (j == cols/2)) {
-                        // std::cout << color[0] << std::endl;
-                        // printf("%f %f\n", color[0], mass);
+                    float pressure = grid->getCell(i,j)->getPressure();
+                    if (pressure > maxPressure) {
+                        maxPressure = pressure;
                     }
-                    // SDL_Rect rect{cell->getCol()*consts::GRID_WIDTH/cols,cell->getRow()*consts::GRID_HEIGHT/rows,(cell->getCol()+1)*consts::GRID_WIDTH/cols,(cell->getRow()+1)*consts::GRID_HEIGHT/rows};
-                    // if (mass > 255) {
-                    //     mass = 255;
-                    // }
-                    // if (!cell->isActive()) SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
-                    uint red = std::min((float)255, 255*color[0]*std::sqrt(mass/maxMass));
-                    uint green = std::min((float)255, 255*color[1]*std::sqrt(mass/maxMass));
-                    uint blue = std::min((float)255, 255*color[2]*std::sqrt(mass/maxMass));
-                    SDL_SetRenderDrawColor(renderer, red, green, blue, 255);
-                    // SDL_SetRenderDrawColor(renderer, mass, mass, 0, 255);
-                    SDL_RenderFillRect(renderer, &rect);
+                    SDL_Rect rect{j*consts::GRID_WIDTH/cols,i*consts::GRID_HEIGHT/rows,(j+1)*consts::GRID_WIDTH/cols,(i+1)*consts::GRID_HEIGHT/rows};
+                    if (grid->pressureDisplay) {
+                        float scaledP_R = 255 * std::sqrt(pressure/(maxPressure/2));
+                        SDL_SetRenderDrawColor(renderer, scaledP_R, 0, 0, 255);
+                        // SDL_SetRenderDrawColor(renderer, mass, mass, 0, 255);
+                        SDL_RenderFillRect(renderer, &rect);
+                    } else {
+                        // float mass = grid->getActive()[i]->getMass();
+                        // FluidCell *cell = grid->getActive()[i];
+                        std::vector<float> color = grid->getCell(i,j)->getColor();
+                        
+                        if ((i == rows/2) && (j == cols/2)) {
+                            // std::cout << color[0] << std::endl;
+                            // printf("%f %f\n", color[0], mass);
+                        }
+                        // SDL_Rect rect{cell->getCol()*consts::GRID_WIDTH/cols,cell->getRow()*consts::GRID_HEIGHT/rows,(cell->getCol()+1)*consts::GRID_WIDTH/cols,(cell->getRow()+1)*consts::GRID_HEIGHT/rows};
+                        // if (mass > 255) {
+                        //     mass = 255;
+                        // }
+                        // if (!cell->isActive()) SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255);
+                        uint red = std::min((float)255, 255*color[0]*std::sqrt(mass/maxMass));
+                        uint green = std::min((float)255, 255*color[1]*std::sqrt(mass/maxMass));
+                        uint blue = std::min((float)255, 255*color[2]*std::sqrt(mass/maxMass));
+                        SDL_SetRenderDrawColor(renderer, red, green, blue, 255);
+                        // SDL_SetRenderDrawColor(renderer, mass, mass, 0, 255);
+                        SDL_RenderFillRect(renderer, &rect);
+                    }
             // }
                 }
             }
@@ -1023,6 +1065,7 @@ class Simulator {
         SDL_Window *window = NULL;
         SDL_Surface *screenSurface;
         float maxMass=255;
+        float maxPressure = 255;
         
 };
 

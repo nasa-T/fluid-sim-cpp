@@ -74,6 +74,8 @@ class FluidGrid {
 
         std::map<uint, float> sampleCellAtPoint(float x, float y);
 
+        void force(int i, int j, float fx, float fy);
+
         void projection(int iters);
 
         void advect();
@@ -94,6 +96,8 @@ class FluidGrid {
         int buttonHeld = 0;
         Sint32 prevMouseX = 0;
         Sint32 prevMouseY = 0;
+        // so that simulator can display the pressure if this is 1
+        uint pressureDisplay = 0; 
     private:
         float width, height;
         float cellWidth, cellHeight;
