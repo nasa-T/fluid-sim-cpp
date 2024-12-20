@@ -11,6 +11,7 @@ namespace consts {
     const float kb = 1.380649e-23;
     const float Na = 6.02214076e23;
     const float R = kb*Na;
+    const float Hmol = 1000;
 
     const double EARTH_ORBIT = 1.5e11;
     const double EARTH_MASS = 6e24;
@@ -39,9 +40,10 @@ namespace consts {
 const uint MASS = 0;
 const uint TEMPERATURE = 1;
 const uint PRESSURE = 2;
-const uint R = 3;
-const uint G = 4;
-const uint B = 5;
+const uint SMOKEMASS = 3;
+const uint R = 4;
+const uint G = 5;
+const uint B = 6;
 // mouse modes
 const uint SMOKE = 0;
 const uint VELOCITY = 1;
