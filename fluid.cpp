@@ -452,11 +452,12 @@ class Source {
             vx = v;
             float mass = grid->getCell(i,j)->getMass(false);
             if (type == SMOKEGUN) {
-                if (v > 0) {
-                    grid->force(i,j+1,vx*1*mass,0);
-                } else {
-                    grid->force(i,j,vx*1*mass,0);
-                }
+                // if (v > 0) {
+                //     grid->force(i,j+1,vx*100,0);
+                // } else {
+                //     grid->force(i,j,vx*100,0);
+                // }
+                grid->force(i,j,vx*100*mass,0);
                 // vGrid->setVx(i,j,vx);
             } else if (type == POINTSOURCE) {
                 vGrid->setVx(i,j,-vx);
@@ -468,11 +469,12 @@ class Source {
             // vGrid->setVy(i,j,vy);
             float mass = grid->getCell(i,j)->getMass(false);
             if (type == SMOKEGUN) {
-                if (v > 0) {
-                    grid->force(i,j,0,vy*100*mass);
-                } else {
-                    grid->force(i+1,j,0,vy*100*mass);
-                }
+                // if (v > 0) {
+                //     grid->force(i,j,0,vy*100);
+                // } else {
+                //     grid->force(i+1,j,0,vy*100);
+                // }
+                grid->force(i,j,0,vy*100*mass);
                 // vGrid->setVy(i+1,j,vy);
             } else if (type == POINTSOURCE) {
                 vGrid->setVy(i+1,j,-vy);
@@ -518,6 +520,7 @@ FluidGrid::FluidGrid(float width, float height, int r, int c, float dt): width(w
     SCALE_H = height / consts::GRID_HEIGHT;
     SCALE_W = width / consts::GRID_WIDTH;
     maxV = std::max(cellHeight/5, cellWidth/5);
+    dt = 0.016;
     for (i = 0; i < rows; i++) {
         grid[i] = (FluidCell *) malloc(sizeof(FluidCell)*c);
         newGrid[i] = (FluidCell *) malloc(sizeof(FluidCell)*c);
@@ -526,15 +529,6 @@ FluidGrid::FluidGrid(float width, float height, int r, int c, float dt): width(w
             // float mass = std::rand() % 256;
             std::vector<uint> color = {0, 0, 0};
             grid[i][j] = FluidCell(1000, cellWidth, cellHeight, 300, 0,0,0);
-            if (i < rows/2) {
-                grid[i][j] = FluidCell(1000, cellWidth, cellHeight, 300, 0,0,0);
-                // std::vector<uint> color = {100, 100, 0};
-                // grid[i][j] = FluidCell(100, cellWidth, cellHeight, 100, 1,1,0);
-                // vGrid->setVy(i,j, 50);
-                // vGrid->setVx(i,j, -5);
-                // vGrid->setVy(i-1,j, 5);
-                // grid[i][j].setVelocity(VelocityVector(10,0));
-            }
             // } else if (i == rows/2 && j == cols/2+1) {
             //     grid[i][j] = FluidCell(0, cellWidth, cellHeight, 100);
             //     // grid[i][j].setVelocity(VelocityVector(10,0));
@@ -837,7 +831,7 @@ void FluidGrid::projection(int iters) {
                 // if (n == 0) {
                     
                 // }
-                float d = (-left*sLeft + right*sRight + top*sTop - bottom*sBottom)*1.5;
+                float d = (-left*sLeft + right*sRight + top*sTop - bottom*sBottom)*1.9;
                 // if ((i==rows/2) && (j==cols/2) && (n == 0)) printf("%f\n", d);
                 // if (n == 0) {
                     
@@ -904,7 +898,8 @@ void FluidGrid::advect() {
                 float prevY = physY - dt*vCell.getVy();
 
                 std::map<uint, float> prevProps;
-                if (round((vCell.getVx()+vCell.getVy())*dt/std::sqrt(cellHeight*cellWidth)) == 0) {
+                // if (round((vCell.getVx()+vCell.getVy())*dt/std::sqrt(cellHeight*cellWidth)) == 0) {
+                if (round((vCell.getVx()+vCell.getVy())) == 0) {
                     prevProps[SMOKEMASS] = cell.getMass();
                     prevProps[MASS] = cell.getMass(false);
                     prevProps[TEMPERATURE] = cell.getTemp();
@@ -1061,6 +1056,7 @@ void FluidGrid::update(SDL_Event event) {
                 case SDLK_d:
                     pressureDisplay = 0;
                     densityDisplay = !(densityDisplay);
+                    break;
                 case SDLK_0:
                     gravityFlag = !(gravityFlag);
             }
@@ -1124,12 +1120,13 @@ void FluidGrid::update(SDL_Event event) {
     // }
     nActive = activeCells.size();
     
-    diffuse(0);
-    projection(5);
+    // diffuse(0);
+    projection(100);
     advect();
     
     // printf("%f\n", std::min(cellWidth, cellHeight)/maxV);
-    dt = 0.7 * std::min(cellWidth, cellHeight)/maxV;
+    // dt = 0.7 * std::min(cellWidth, cellHeight)/maxV;
+    dt = std::min(0.016,0.7 * std::min(cellWidth, cellHeight)/maxV);
     // for (i = 0; i < rows; i++) {
     //     for (j = 0; j < cols; j++) {
     //         //random mass for now
@@ -1161,11 +1158,11 @@ void FluidGrid::force(int i, int j, float fx, float fy) {
     } else {
         vGrid->setVx(i,j+1,vxR+ax*dt);
     }
-    if (j == 0) {
-        vGrid->setVx(i,j,0); 
-    } else if (j == cols-1) {
-        vGrid->setVx(i,j+1,0);
-    }
+    // if (j == 0) {
+    //     vGrid->setVx(i,j,0); 
+    // } else if (j == cols-1) {
+    //     vGrid->setVx(i,j+1,0);
+    // }
     
     // vGrid->setVx(i,j+1,vxR+ax*dt);
     if (fy < 0) {
@@ -1173,11 +1170,11 @@ void FluidGrid::force(int i, int j, float fx, float fy) {
     } else {
         vGrid->setVy(i,j,vyU+ay*dt);
     }
-    if (i == 0) {
-        vGrid->setVy(i,j,0); 
-    } else if (i == rows-1) {
-        vGrid->setVy(i+1,j,0);
-    }
+    // if (i == 0) {
+    //     vGrid->setVy(i,j,0); 
+    // } else if (i == rows-1) {
+    //     vGrid->setVy(i+1,j,0);
+    // }
     // vGrid->setVy(i+1,j,vyB+ay*dt);
 }
 
@@ -1214,6 +1211,10 @@ class Simulator {
 
         void drawCells() {
             int i, j;
+            // save a max and min pressure for the current iteration so 
+                // boundaries don't update before the full render
+            float thisMaxPressure = 0;
+            float thisMinPressure = 0;
             for (i = 0; i < rows; i++) {
                 for (j = 0; j < cols; j++) {
                     
@@ -1223,26 +1224,32 @@ class Simulator {
                         maxMass = mass;
                     }
                     float pressure = grid->getCell(i,j)->getPressure();
-                    if (pressure > maxPressure) {
-                        maxPressure = pressure;
-                    } else if (pressure < minPressure) {
-                        minPressure = pressure;
+                    float density = grid->getCell(i,j)->getDensity();
+                    if (density > maxDensity) maxDensity = density;
+                    if (pressure > thisMaxPressure) {
+                        thisMaxPressure = pressure;
+                    } else if (pressure < thisMinPressure) {
+                        thisMinPressure = pressure;
                     }
+                    // if (pressure > maxPressure) {
+                    //     maxPressure = pressure;
+                    // } else if (pressure < minPressure) {
+                    //     minPressure = pressure;
+                    // }
                     SDL_Rect rect{j*consts::GRID_WIDTH/cols,i*consts::GRID_HEIGHT/rows,(j+1)*consts::GRID_WIDTH/cols,(i+1)*consts::GRID_HEIGHT/rows};
                     if (grid->pressureDisplay) {
                         // float scaledP_R = 255 * (pressure-minPressure)/(maxPressure-minPressure);
-                        float scaledP_B = -255 * (pressure)/(maxPressure-minPressure); // outwards pressure
-                        float scaledP_R = 255 * (pressure)/(maxPressure-minPressure); // inwards pressure
-                        if (scaledP_R > 255) printf("%d %d\n", i,j);
+                        float scaledP_B = 255 * (pressure)/(minPressure); // outwards pressure
+                        float scaledP_R = 255 * (pressure)/(maxPressure); // inwards pressure
+                        // if (scaledP_R > 255) printf("%d %d\n", i,j);
                         if (scaledP_R < 0) scaledP_R = 0;
                         if (scaledP_B < 0) scaledP_B = 0;
                         SDL_SetRenderDrawColor(renderer, scaledP_R, 0, scaledP_B, 255);
                         // SDL_SetRenderDrawColor(renderer, mass, mass, 0, 255);
                         // SDL_RenderFillRect(renderer, &rect);
                     } else if (grid->densityDisplay) {
-                        FluidCell *cell = grid->getCell(i, j);
-                        float density = cell->getDensity();
-                        if (density > maxDensity) maxDensity = density;
+                        // FluidCell *cell = grid->getCell(i, j);
+                        
                         float scaled_dens = density/maxDensity * 255;
                         SDL_SetRenderDrawColor(renderer, scaled_dens, scaled_dens, 0, 255);
                         // SDL_RenderFillRect(renderer, &rect);
@@ -1271,14 +1278,17 @@ class Simulator {
                 }
             }
             SDL_RenderPresent(renderer);
-            minPressure = 0;
-            maxPressure = 1;
+            maxPressure = thisMaxPressure;
+            minPressure = thisMinPressure;
+            thisMinPressure = -1;
+            thisMaxPressure = 1;
+            
         }
         
         void step(SDL_Event event) {
             grid->update(event);
             drawCells();
-            SDL_Delay(grid->getdt()*1);  // setting some Delay
+            SDL_Delay(grid->getdt()*1000);  // setting some Delay
         }
 
         void freeSim() {
@@ -1310,11 +1320,14 @@ int main(int argv, char **argc) {
     // 
     // sim.step(event);
     // sim.drawGridLines();
-
+    uint pause = 0;
     while(!(event.type == SDL_QUIT)){
-        
-        sim.step(event);
+        if (!pause) sim.step(event);
         SDL_PollEvent(&event);  // Catching the poll event.
+        if (event.key.type == SDL_KEYDOWN) {
+            // printf("key clicked\n");
+            if (event.key.keysym.sym == SDLK_SPACE) pause = !pause;
+        }
         if (event.type == SDL_MOUSEBUTTONDOWN) {
             SDL_MouseButtonEvent buttonEvent = event.button;
             Sint32 x = buttonEvent.x;

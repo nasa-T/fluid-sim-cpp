@@ -119,7 +119,7 @@ class FluidGrid {
         VelocityGrid *new_vGrid;
         Source *sourceArray;
         std::vector<Source*> sourceList;
-        float viscosity = 0.00001;
+        float viscosity = 0;
 };
   
   class Simulator;
