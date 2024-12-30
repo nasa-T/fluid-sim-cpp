@@ -78,6 +78,10 @@ class FluidGrid {
 
         void force(int i, int j, float fx, float fy);
 
+        void diffuse(int iters);
+
+        std::map<char, float> getxyFromij(int i, int j);
+
         void projection(int iters);
 
         void advect();
@@ -100,6 +104,8 @@ class FluidGrid {
         Sint32 prevMouseY = 0;
         // so that simulator can display the pressure if this is 1
         uint pressureDisplay = 0; 
+        uint densityDisplay = 1;
+        uint gravityFlag = 1;
     private:
         float width, height;
         float cellWidth, cellHeight;
@@ -113,6 +119,7 @@ class FluidGrid {
         VelocityGrid *new_vGrid;
         Source *sourceArray;
         std::vector<Source*> sourceList;
+        float viscosity = 0.00001;
 };
   
   class Simulator;
