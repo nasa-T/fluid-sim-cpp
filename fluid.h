@@ -82,6 +82,8 @@ class FluidGrid {
 
         std::map<char, float> getxyFromij(int i, int j);
 
+        void massContinuity();
+
         void projection(int iters, bool compressible);
 
         void advect();
@@ -103,10 +105,10 @@ class FluidGrid {
         Sint32 prevMouseX = 0;
         Sint32 prevMouseY = 0;
         // so that simulator can display the pressure if this is 1
-        uint pressureDisplay = 1; 
+        uint pressureDisplay = 0; 
         uint temperatureDisplay = 0;
-        uint densityDisplay = 0;
-        uint gravityFlag = 0;
+        uint densityDisplay = 1;
+        uint gravityFlag = 1;
     private:
         float width, height;
         float cellWidth, cellHeight;
