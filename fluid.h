@@ -69,7 +69,7 @@ class FluidCell;
 class Source;
 class FluidGrid {
     public:
-        FluidGrid(float width, float height, int r, int c, float dt);
+        FluidGrid(float width, float height, int r, int c, float dt, bool comp);
 
         FluidCell *getCell(int i, int j);
 
@@ -85,7 +85,9 @@ class FluidGrid {
 
         void massContinuity();
 
-        void projection(int iters, bool compressible);
+        void compressibleUpdate();
+
+        void projection(int iters);
 
         void advect();
 
@@ -110,6 +112,7 @@ class FluidGrid {
         uint temperatureDisplay = 0;
         uint densityDisplay = 1;
         uint gravityFlag = 0;
+        bool compressible;
     private:
         float width, height;
         float cellWidth, cellHeight;
