@@ -6,12 +6,13 @@
 #include <map>
 
 namespace consts {
-    const float HMol = 2.408e-3;
-    const float HeMol = 4e-3;
+    const float HMol = 1.008e-3;
+    const float HeMol = 4.003e-3;
     const float kb = 1.380649e-23;
     const float Na = 6.02214076e23;
     const float R = kb*Na;
-    const float Hmol = 1000;
+    
+    const float HCv = 10730;
 
     const double EARTH_ORBIT = 1.5e11;
     const double EARTH_MASS = 6e24;
@@ -108,7 +109,7 @@ class FluidGrid {
         uint pressureDisplay = 0; 
         uint temperatureDisplay = 0;
         uint densityDisplay = 1;
-        uint gravityFlag = 1;
+        uint gravityFlag = 0;
     private:
         float width, height;
         float cellWidth, cellHeight;
