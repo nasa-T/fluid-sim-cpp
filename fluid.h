@@ -14,6 +14,7 @@ namespace consts {
     
     const float HCv = 10730;
 
+    const float g = -9.8;
     const double EARTH_ORBIT = 1.5e11;
     const double EARTH_MASS = 6e24;
     const double SUN_MASS = 2e30;
@@ -88,11 +89,13 @@ class FluidGrid {
 
         void compressibleMomentumUpdate();
 
+        void energyUpdate();
+
         void projection(int iters);
 
         void advect();
 
-        void setVelocities();
+        void setVelocities(bool setE);
 
         void update(SDL_Event event);
 
