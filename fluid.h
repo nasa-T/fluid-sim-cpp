@@ -10,7 +10,7 @@ namespace consts {
     const float HeMol = 4.003e-3;
     const float kb = 1.380649e-23;
     const float Na = 6.02214076e23;
-    const float R = kb*Na;
+    const float r = kb*Na;
     
     const float HCv = 10730;
 
@@ -42,9 +42,10 @@ const uint MASS = 0;
 const uint TEMPERATURE = 1;
 const uint PRESSURE = 2;
 const uint SMOKEMASS = 3;
-const uint R = 4;
-const uint G = 5;
-const uint B = 6;
+const uint E = 4;
+const uint R = 5;
+const uint G = 6;
+const uint B = 7;
 // mouse modes
 const uint SMOKE = 0;
 const uint VELOCITY = 1;
@@ -85,11 +86,13 @@ class FluidGrid {
 
         void massContinuity();
 
-        void compressibleUpdate();
+        void compressibleMomentumUpdate();
 
         void projection(int iters);
 
         void advect();
+
+        void setVelocities();
 
         void update(SDL_Event event);
 
