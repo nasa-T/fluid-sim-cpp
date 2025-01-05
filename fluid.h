@@ -14,7 +14,7 @@ namespace consts {
     
     const float HCv = 10730;
 
-    const float g = -100;
+    const float g = -9.8;
     const double EARTH_ORBIT = 1.5e11;
     const double EARTH_MASS = 6e24;
     const double SUN_MASS = 2e30;
@@ -132,7 +132,7 @@ class FluidGrid {
         VelocityGrid *new_vGrid;
         Source *sourceArray;
         std::vector<Source*> sourceList;
-        float viscosity = 1;
+        float viscosity = 0;
 };
   
   class Simulator;
