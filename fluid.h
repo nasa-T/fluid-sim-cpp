@@ -19,7 +19,7 @@ namespace consts {
     const double EARTH_MASS = 6e24;
     const double SUN_MASS = 2e30;
     const double G = 6.67e-11;
-  // const double G = 6.67e-2;
+    // const double G = 6.67e-1;
     const double PI = M_PI;
     // const double GRID_WIDTH = 1.4E9;
     // const double GRID_HEIGHT = 1.4E9;
@@ -47,6 +47,7 @@ const uint E = 4;
 const uint R = 5;
 const uint G = 6;
 const uint B = 7;
+const uint GRAVITY = 8;
 // mouse modes
 const uint SMOKE = 0;
 const uint VELOCITY = 1;
@@ -62,6 +63,53 @@ struct position {
     public:
         float x, y;
 };
+
+float coolingFunction(float T) {
+    if (T < 1e4) {
+        return 0; // Negligible atomic cooling below 10,000 K
+    } else if (T < 1e5) {
+        return 1e-22 * T; // Line cooling scales linearly
+    } else if (T < 1e6) {
+        return 1e-23 * T * T; // Bremsstrahlung and line cooling
+    } else {
+        return 1e-24 * sqrt(T); // Bremsstrahlung dominant
+    }
+}
+
+float combinedCoolingFunction(float rho, float T) {
+    // Constants
+    const float C_mol = 1e-27; // Molecular cooling coefficient
+    const float C_dust = 1e-25; // Dust cooling coefficient
+    const float C_line = 1e-22; // Atomic line cooling coefficient
+    
+    float Lambda_mol = 0.0f;
+    float Lambda_line = 0.0f;
+    float Lambda_dust = 0.0f;
+    float Lambda_brem = 0.0f;
+
+    // Molecular cooling (10 K < T < 2000 K)
+    if (T >= 10 && T < 2000) {
+        Lambda_mol = C_mol * std::pow(T, 4.5);
+    }
+
+    // Atomic line cooling (10,000 K < T < 1,000,000 K)
+    if (T >= 1e4 && T < 1e6) {
+        Lambda_line = (T < 1e5) ? C_line * T : C_line * std::pow(T, 2);
+    }
+
+    // Dust cooling (T < 1000 K)
+    if (T < 1000) {
+        Lambda_dust = C_dust * std::sqrt(T);
+    }
+    
+    // Bremsstrahlung cooling
+    if (T > 1e6) {
+        Lambda_brem = 1e-24 * std::sqrt(T);
+    }
+
+    // Total cooling
+    return rho * rho * (Lambda_mol + Lambda_line + Lambda_dust);
+}
 
 class Neighbors;
 class VelocityVector;
@@ -86,6 +134,8 @@ class FluidGrid {
         std::map<char, float> getxyFromij(int i, int j);
 
         void massContinuity();
+
+        void solveGravPotential(int iters);
 
         void compressibleMomentumUpdate();
 
@@ -118,11 +168,13 @@ class FluidGrid {
         uint temperatureDisplay = 0;
         uint densityDisplay = 1;
         uint gravityFlag = 0;
+        uint gravPotentialDisplay = 0;
+        uint energyDisplay = 0;
         bool compressible;
     private:
         float width, height;
         float cellWidth, cellHeight;
-        float dt, maxV;
+        float dt, maxV, maxT;
         int rows, cols, cells;
         FluidCell **grid;
         FluidCell **newGrid;

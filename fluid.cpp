@@ -240,6 +240,7 @@ class FluidCell {
             // vBounds = VelocityBox(0,0,0,0);
             // vBounds.setVelocity(velocity);
             neighbors = Neighbors();
+            float gravPotential = 0;
         }
         float getCv() {
             return consts::r/consts::HMol/(1.4-1);
@@ -257,7 +258,11 @@ class FluidCell {
         float getTemp(bool recalculate=true) {
             if (recalculate && compressible) {
                 // float cv = consts::r/consts::HMol/(1.4-1);
-                temperature = gete(false)/(getDensity()*getCv());
+                if (getDensity() == 0) {
+                    temperature = 0;
+                } else {
+                    temperature = gete(false)/(getDensity()*getCv());
+                }
             }
             return temperature;
         }
@@ -274,16 +279,18 @@ class FluidCell {
         }
         void setPressure(float p) {
             if (!!pressure) {
-                float newTemperature = temperature * p/pressure;
+                // float newTemperature = temperature * p/pressure;
                 // printf("newtemp: %f\n",newTemperature);
                 // temperature = newTemperature;
             }
             pressure = p;
         }
         void setMass(float m, bool smoke=true) {
-            if (m >= 0) {
+            if (m >= 1) {
                 if (smoke) smokeMass = m;
                 else mass = m;
+            } else {
+                mass = 1;
             }
             // setColor(mass*r, mass*g, mass*b);
         }
@@ -337,6 +344,14 @@ class FluidCell {
             r = red;
             g = green;
             b = blue;
+        }
+
+        float getGravPotential() {
+            return gravPotential;
+        }
+
+        void setGravPotential(float u) {
+            gravPotential = u;
         }
 
         FluidCell *getRight() {
@@ -434,7 +449,7 @@ class FluidCell {
         }
 
     private:
-        float mass, size, density, temperature, pressure, width, height, smokeMass, e, E;
+        float mass, size, density, temperature, pressure, width, height, smokeMass, e, E, gravPotential;
         bool compressible;
         int row, col;
         VelocityVector velocity;
@@ -522,9 +537,9 @@ class Source {
             return vy;
         }
         void setVx(float v) {
-            vx = ((v > 0) - (v < 0)) * 1000;
+            // vx = ((v > 0) - (v < 0)) * 1000;
             // printf("%d %d: %f\n", i,j,vx);
-            // vx = v;
+            vx = v;
             float mass = grid->getCell(i,j)->getMass(false);
             if (type == SMOKEGUN) {
                 // if (v > 0) {
@@ -532,7 +547,9 @@ class Source {
                 // } else {
                 //     grid->force(i,j,vx*100,0);
                 // }
-                grid->force(i,j,vx*100*mass,0);
+                grid->force(i, j + 1, vx * 25 * mass, 0);
+                grid->force(i, j - 1, vx * 25 * mass, 0);
+                grid->force(i,j,vx*50*mass,0);
                 // vGrid->setVx(i,j,vx);
             } else if (type == POINTSOURCE) {
                 vGrid->setVx(i,j,-vx);
@@ -540,8 +557,8 @@ class Source {
             // vGrid->setVx(i,j+1,vx);
         }
         void setVy(float v) {
-            // vy = v;
-            vy = 0;
+            vy = v;
+            // vy = 0;
             // vGrid->setVy(i,j,vy);
             float mass = grid->getCell(i,j)->getMass(false);
             if (type == SMOKEGUN) {
@@ -602,11 +619,12 @@ FluidGrid::FluidGrid(float width, float height, int r, int c, float dt, bool com
         newGrid[i] = (FluidCell *) malloc(sizeof(FluidCell)*c);
         for (j = 0; j < cols; j++) {
             //random mass for now
-            // float mass = std::rand() % 256;
+            // float mass = (std::rand() % 10000)+10;
             std::vector<uint> color = {0, 0, 0};
-            grid[i][j] = FluidCell(1000, cellWidth, cellHeight, 400, 0,0,0,comp);
-            // if (i == rows/2) {
-            //     grid[i][j] = FluidCell(1000, cellWidth, cellHeight, 300, 0,0,0);
+            grid[i][j] = FluidCell(1e23, cellWidth, cellHeight, 400, 0,0,0,comp);
+            if (i == rows/2 && j == cols/2) {
+                grid[i][j] = FluidCell(1e25, cellWidth, cellHeight, 400, 0,0,0,comp);
+            }
             // } else if (i == rows-1) {
             //     grid[i][j] = FluidCell(1000, cellWidth, cellHeight, 300, 0,0,0);
             // }
@@ -631,6 +649,14 @@ FluidGrid::FluidGrid(float width, float height, int r, int c, float dt, bool com
             newGrid[i][j] = grid[i][j];
             // new_vGrid->setVx(i,j,vGrid->getVx(i,j));
             // new_vGrid->setVy(i,j,vGrid->getVy(i,j));
+            float randVx = (std::rand() % (int)cellWidth/5)-cellWidth/10;
+            float randVy = (std::rand() % (int)cellHeight/5)-cellHeight/10;
+            // vGrid->setVx(i,j,randVx);
+            // vGrid->setVy(i,j,randVy);
+            // new_vGrid->setVx(i,j,randVx);
+            // new_vGrid->setVy(i,j,randVy);
+            vGrid->setVx(i,j,0);
+            vGrid->setVy(i,j,0);
             new_vGrid->setVx(i,j,0);
             new_vGrid->setVy(i,j,0);
         }
@@ -659,12 +685,12 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
     // float cHeight = round(cellHeight);
     // printf("%f\n", round(height - y - cellHeight/2));
     int i,j;
-    if (round(1000*(height - y - cellHeight/2)) == 0.0f) {
+    if (round(1000*(height - y - cellHeight/2)) == 0) {
         i = 0;
     } else {
         i = ceil((height - y - cellHeight/2) / cellHeight);
     }
-    if (round(1000*(x - cellWidth/2)) == 0.0f) {
+    if (round(1000*(x - cellWidth/2)) == 0) {
         j = 0;
     } else {
         j = floor((x - cellWidth/2) / cellWidth);
@@ -695,6 +721,7 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
         p10[TEMPERATURE] = cell->getTemp();
         p10[PRESSURE] = cell->getPressure();
         p10[E] = cell->getE();
+        p10[GRAVITY] = cell->getGravPotential();
         // p10[R] = cell->getColor()[0]*p10[MASS];
         // p10[G] = cell->getColor()[1]*p10[MASS];
         // p10[B] = cell->getColor()[2]*p10[MASS];
@@ -702,13 +729,14 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
         p10[G] = cell->getColor()[1];
         p10[B] = cell->getColor()[2];
     } else {
-        if (compressible) {
+        if (compressible && 0) {
             FluidCell *cell = getCell(i-1,j+1);
             p10[SMOKEMASS] = cell->getMass();
             p10[MASS] = cell->getMass(false);
             p10[TEMPERATURE] = cell->getTemp();
             p10[PRESSURE] = cell->getPressure();
             p10[E] = cell->getE();
+            p10[GRAVITY] = cell->getGravPotential();
             p10[R] = cell->getColor()[0];
             p10[G] = cell->getColor()[1];
             p10[B] = cell->getColor()[2];
@@ -731,6 +759,7 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
         p00[TEMPERATURE] = cell->getTemp();
         p00[PRESSURE] = cell->getPressure();
         p00[E] = cell->getE();
+        p00[GRAVITY] = cell->getGravPotential();
         // p00[R] = cell->getColor()[0]*p00[MASS];
         // p00[G] = cell->getColor()[1]*p00[MASS];
         // p00[B] = cell->getColor()[2]*p00[MASS];
@@ -738,13 +767,14 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
         p00[G] = cell->getColor()[1];
         p00[B] = cell->getColor()[2];
     } else {
-        if (compressible) {
+        if (compressible && 0) {
             FluidCell *cell = getCell(i,j+1);
             p00[SMOKEMASS] = cell->getMass();
             p00[MASS] = cell->getMass(false);
             p00[TEMPERATURE] = cell->getTemp();
             p00[PRESSURE] = cell->getPressure();
             p00[E] = cell->getE();
+            p00[GRAVITY] = cell->getGravPotential();
             p00[R] = cell->getColor()[0];
             p00[G] = cell->getColor()[1];
             p00[B] = cell->getColor()[2];
@@ -767,6 +797,7 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
         p01[TEMPERATURE] = cell->getTemp();
         p01[PRESSURE] = cell->getPressure();
         p01[E] = cell->getE();
+        p01[GRAVITY] = cell->getGravPotential();
         // p01[R] = cell->getColor()[0]*p01[MASS];
         // p01[G] = cell->getColor()[1]*p01[MASS];
         // p01[B] = cell->getColor()[2]*p01[MASS];
@@ -774,13 +805,14 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
         p01[G] = cell->getColor()[1];
         p01[B] = cell->getColor()[2];
     } else {
-        if (compressible) {
+        if (compressible && 0) {
             FluidCell *cell = getCell(i,j);
             p01[SMOKEMASS] = cell->getMass();
             p01[MASS] = cell->getMass(false);
             p01[TEMPERATURE] = cell->getTemp();
             p01[PRESSURE] = cell->getPressure();
             p01[E] = cell->getE();
+            p01[GRAVITY] = cell->getGravPotential();
             p01[R] = cell->getColor()[0];
             p01[G] = cell->getColor()[1];
             p01[B] = cell->getColor()[2];
@@ -803,6 +835,7 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
         p11[TEMPERATURE] = cell->getTemp();
         p11[PRESSURE] = cell->getPressure();
         p11[E] = cell->getE();
+        p11[GRAVITY] = cell->getGravPotential();
         // p11[R] = cell->getColor()[0]*p11[MASS];
         // p11[G] = cell->getColor()[1]*p11[MASS];
         // p11[B] = cell->getColor()[2]*p11[MASS];
@@ -810,13 +843,14 @@ std::map<uint, float> FluidGrid::sampleCellAtPoint(float x, float y) {
         p11[G] = cell->getColor()[1];
         p11[B] = cell->getColor()[2];
     } else {
-        if (compressible) {
+        if (compressible && 0) {
             FluidCell *cell = getCell(i-1,j);
             p11[SMOKEMASS] = cell->getMass();
             p11[MASS] = cell->getMass(false);
             p11[TEMPERATURE] = cell->getTemp();
             p11[PRESSURE] = cell->getPressure();
             p11[E] = cell->getE();
+            p11[GRAVITY] = cell->getGravPotential();
             p11[R] = cell->getColor()[0];
             p11[G] = cell->getColor()[1];
             p11[B] = cell->getColor()[2];
@@ -970,6 +1004,34 @@ void FluidGrid::massContinuity() { // handled by advection, maybe this function 
     }
 }
 
+void FluidGrid::solveGravPotential(int iters) {
+    int i, j, n;
+    for (n = 0; n < iters; n++) {
+        for (i = 0; i < rows; i++) {
+            for (j = 0; j < cols; j++) {
+                float uL, uR, uT, uB = 0;
+                float dens = getCell(i,j)->getDensity();
+                float w2 = cellWidth*cellWidth;
+                float h2 = cellHeight*cellHeight;
+                if (i > 0) uT = getCell(i-1,j)->getGravPotential();
+                if (i < rows-1) uB = getCell(i+1,j)->getGravPotential();
+                if (j > 0) uL = getCell(i,j-1)->getGravPotential();
+                if (j < cols-1) uR = getCell(i,j+1)->getGravPotential();
+                float u = (uL + uR)/(2*(1+w2/h2)) + (uT + uB)/(2*(h2/w2+1)) - 2 * consts::PI * consts::G * dens / (1/w2 + 1/h2);
+                getCell(i,j)->setGravPotential(u);
+            }
+        }
+    }
+    for (i = 0; i < rows; ++i) {
+        getCell(i, 0)->setGravPotential(0); // Left boundary
+        getCell(i, cols - 1)->setGravPotential(0); // Right boundary
+    }
+    for (j = 0; j < cols; ++j) {
+        getCell(0, j)->setGravPotential(0); // Top boundary
+        getCell(rows - 1, j)->setGravPotential(0); // Bottom boundary
+    }
+}
+
 void FluidGrid::compressibleMomentumUpdate() {
     int i, j;
     for (i = 0; i < rows; i++) {
@@ -986,6 +1048,7 @@ void FluidGrid::compressibleMomentumUpdate() {
             float pressure = cell->getPressure();
 
             float E = cell->getE();
+            
             // // pressure-work term
             // float div = (right-left)/cellWidth + (top-bottom)/cellHeight;
             // float pdiv = pressure * div;
@@ -1016,36 +1079,84 @@ void FluidGrid::compressibleMomentumUpdate() {
             top += laplacianVy*viscosity*getdt();
             new_vGrid->setVx(i,j,left);
             new_vGrid->setVy(i,j,top);
+            float grav = getCell(i,j)->getGravPotential();
+            // if (i < rows-1) {
+            //     float pressureB = getCell(i+1,j)->getPressure();
+            //     float gravB = getCell(i+1,j)->getGravPotential();
+            //     float gradYP = (pressure-pressureB)/(2*cellHeight);
+            //     float gradYG = -(grav-gravB)/(2*cellHeight);
+            //     // if (i == rows/2 && j ==cols/2) printf("gradYG:%f gradYP: %f dens:%f GP:%f press:%f\n", gradYG, gradYP, cell->getDensity(), cell->getGravPotential(), cell->getPressure(false));
+            //     std::map<char,float> xyVy = vGrid->getxyFromijVy(i+1,j);
+            //     float mass = sampleCellAtPoint(xyVy['x'],xyVy['y'])[MASS];
+            //     float density = mass/(cellHeight*cellWidth);
+            //     // float newBVy = bottom-gradY;
+            //     float newBVy = bottom-(1/density)*gradYP*dt+gradYG*dt;
+            //     // if (i == rows-2 && j ==cols/2) printf("newVy:%f; gradY:%f; 1/dens:%f\n",newBVy,gradY,1/density);
+            //     new_vGrid->setVy(i+1,j,newBVy);
+            // }
+            float density;
+            float pressureB, gravB;
             if (i < rows-1) {
-                float pressureB = getCell(i+1,j)->getPressure();
-                float gradY = (pressure-pressureB)/(2*cellHeight);
-
-                // if (i == 1 && j ==cols/2) printf("gradY:%f dens:%f press:%f\n",gradY, cell->getDensity(), cell->getPressure());
-                std::map<char,float> xyVy = vGrid->getxyFromijVy(i+1,j);
-                float density = sampleCellAtPoint(xyVy['x'],xyVy['y'])[MASS]/(cellHeight*cellWidth);
-                // float newBVy = bottom-gradY;
-                float newBVy = bottom-(1/density)*gradY*dt;
-                // if (i == rows-2 && j ==cols/2) printf("newVy:%f; gradY:%f; 1/dens:%f\n",newBVy,gradY,1/density);
-                new_vGrid->setVy(i+1,j,newBVy);
+                pressureB = getCell(i+1,j)->getPressure();
+                gravB = getCell(i+1,j)->getGravPotential();
+            } else {
+                gravB = 0;
+                pressureB = 0;
             }
+            float gradYP = (pressure-pressureB)/(2*cellHeight);
+            float gradYG = -(grav-gravB)/(2*cellHeight);
+            std::map<char,float> xyVy = vGrid->getxyFromijVy(i+1,j);
+            mass = sampleCellAtPoint(xyVy['x'],xyVy['y'])[MASS];
+            density = mass/(cellHeight*cellWidth);
+            float newBVy = bottom-(1/density)*gradYP*dt+gradYG*dt;
+            new_vGrid->setVy(i+1,j,newBVy);
+            
+            // if (j < cols-1) {
+            //     float pressureR = getCell(i,j+1)->getPressure();
+            //     float gravR = getCell(i,j+1)->getGravPotential();
+            //     float gradXP = (pressureR-pressure)/(2*cellWidth);
+            //     float gradXG = -(gravR-grav)/(2*cellWidth);
+            //     if (!std::isfinite(gradXP)) {
+            //         std::cerr << "NaN detected in grad X at cell (" << i << ", " << j << ") pressure(i,j): " << pressure << " density: " << cell->getDensity() << "\n";
+            //         assert(false); // Debug immediately
+            //     }
+            //     // if (i == rows/2 && j ==cols/2) printf("gradX:%f\n",gradX);
+            //     std::map<char,float> xyVx = vGrid->getxyFromijVx(i,j+1);
+            //     float density = sampleCellAtPoint(xyVx['x'],xyVx['y'])[MASS]/(cellHeight*cellWidth);
+            //     float newRVx = right-(1/density)*gradXP*dt+gradXG*dt;
+            //     if (!std::isfinite(newRVx)) {
+            //         std::cerr << "NaN detected in vxR at cell (" << i << ", " << j << ") old vxR: " << right << " density: " << density << "\n";
+            //         assert(false); // Debug immediately
+            //     }
+            //     new_vGrid->setVx(i,j+1,newRVx);
+            //     // if (i == rows/2 && j ==cols/2) printf("newVx:%f\n",newRVx);
+            // }
+            float pressureR, gravR;
             if (j < cols-1) {
-                float pressureR = getCell(i,j+1)->getPressure();
-                float gradX = (pressureR-pressure)/(2*cellWidth);
-                if (!std::isfinite(gradX)) {
-                    std::cerr << "NaN detected in grad X at cell (" << i << ", " << j << ") pressure(i,j): " << pressure << " density: " << cell->getDensity() << "\n";
-                    assert(false); // Debug immediately
-                }
-                // if (i == rows/2 && j ==cols/2) printf("gradX:%f\n",gradX);
-                std::map<char,float> xyVx = vGrid->getxyFromijVx(i,j+1);
-                float density = sampleCellAtPoint(xyVx['x'],xyVx['y'])[MASS]/(cellHeight*cellWidth);
-                float newRVx = right-(1/density)*gradX*dt;
-                if (!std::isfinite(newRVx)) {
-                    std::cerr << "NaN detected in vxR at cell (" << i << ", " << j << ") old vxR: " << right << " density: " << density << "\n";
-                    assert(false); // Debug immediately
-                }
-                new_vGrid->setVx(i,j+1,newRVx);
-                // if (i == rows/2 && j ==cols/2) printf("newVx:%f\n",newRVx);
+                pressureR = getCell(i,j+1)->getPressure(false);
+                gravR = getCell(i,j+1)->getGravPotential();
+            } else {
+                pressureR = 0;
+                gravR = 0;
             }
+            float gradXP = (pressureR-pressure)/(2*cellWidth);
+            float gradXG = -(gravR-grav)/(2*cellWidth);
+            if (!std::isfinite(gradXP)) {
+                std::cerr << "NaN detected in grad X at cell (" << i << ", " << j << ") pressure(i,j): " << pressure << " density: " << cell->getDensity() << "\n";
+                assert(false); // Debug immediately
+            }
+            // if (i == rows/2 && j ==cols/2) printf("gradX:%f\n",gradX);
+            std::map<char,float> xyVx = vGrid->getxyFromijVx(i,j+1);
+            mass = sampleCellAtPoint(xyVx['x'],xyVx['y'])[MASS];
+            density = mass/(cellHeight*cellWidth);
+            float newRVx = right-(1/density)*gradXP*dt+gradXG*dt;
+            if (!std::isfinite(newRVx)) {
+                std::cerr << "NaN detected in vxR at cell (" << i << ", " << j << ") old vxR: " << right << " density: " << density << "\n";
+                assert(false); // Debug immediately
+            }
+            new_vGrid->setVx(i,j+1,newRVx);
+            // if (i == rows/2 && j ==cols/2) printf("newVx:%f\n",newRVx);
+        
         }
     }
     vGrid = new_vGrid;
@@ -1071,23 +1182,42 @@ void FluidGrid::energyUpdate() {
             if (E - pdiv * getdt() >= 0) {
                 E += -pdiv * getdt();
             } else {
-                std::cerr << "Warning: Pressure work term causing negative energy.\n";
+                // std::cerr << "Warning: Pressure work term causing negative energy.\n";
                 E = 0.0f; // Prevent negative energy
             }
             // if (i==1 && j==cols/2) printf("pdiv:%f\n",pdiv);
             // E += -pdiv*getdt();
-            
-            // gravitational-work term
-            if (gravityFlag) {
-                float gravWork = cell->getVelocity().getVy()*(consts::g)*cell->getDensity();
-                // E += gravWork*getdt();
-                if (E + gravWork * getdt() >= 0) {
-                    E += gravWork * getdt();
-                } else {
-                    std::cerr << "Warning: Gravitational work term causing negative energy.\n";
-                    E = 0.0f; // Prevent negative energy
-                }
+            float density = cell->getDensity();
+            float T = cell->getTemp(false);
+            float lambda = combinedCoolingFunction(density,T);
+            if (E + lambda * getdt() >= 0) {
+                E += -lambda*getdt();
+            } else {
+                E = 0.0f;
             }
+            // gravitational-work term
+            float grav = getCell(i,j)->getGravPotential();
+            float gravB = getCell(i+1,j)->getGravPotential();
+            float gy = -(grav-gravB)/(2*cellHeight);
+            float gravR = getCell(i,j+1)->getGravPotential();
+            float gx = -(gravR-grav)/(2*cellWidth);
+            float gravWork = (cell->getVelocity().getVx()*gx+cell->getVelocity().getVy()*gy)*cell->getDensity();
+            if (E + gravWork * getdt() >= 0) {
+                E += gravWork * getdt();
+            } else {
+                // std::cerr << "Warning: Gravitational work term causing negative energy.\n";
+                E = 0.0f; // Prevent negative energy
+            }
+            // if (gravityFlag) {
+            //     float gravWork = cell->getVelocity().getVy()*(consts::g)*cell->getDensity();
+            //     // E += gravWork*getdt();
+            //     if (E + gravWork * getdt() >= 0) {
+            //         E += gravWork * getdt();
+            //     } else {
+            //         std::cerr << "Warning: Gravitational work term causing negative energy.\n";
+            //         E = 0.0f; // Prevent negative energy
+            //     }
+            // }
             cell->setE(E);
         }
     }
@@ -1096,9 +1226,11 @@ void FluidGrid::energyUpdate() {
 void FluidGrid::projection(int iters) {
     // for incompressible fluids only
     int i, j;
-    for (int n = 0; n < iters; n++) {
+    for (int n = 0; n < iters+1; n++) {
+        // for (i = 0; i < rows; i++) {
+        //     for (j = 0; j < cols; j++) {
         for (i = 0; i < rows; i++) {
-            for (j = 0; j < cols; j++) {
+            for (j = cols-1; j >= 0; j--) {
                 FluidCell *cell = getCell(i,j);
                 float mass = cell->getMass(false);
                 if (n == 0) {
@@ -1106,29 +1238,31 @@ void FluidGrid::projection(int iters) {
                     // float pressure = cell->getDensity()/consts::Hmol * consts::kb * consts::Na * cell->getTemp();
                     cell->setPressure(0);
                 }
-                int sLeft = !!j;
-                int sRight = !!(cols - 1 - j);
-                int sTop = !!i;
-                int sBottom = !!(rows - 1 - i);                        
+                if (n > 0) {
+                    int sLeft = !!j;
+                    int sRight = !!(cols - 1 - j);
+                    int sTop = !!i;
+                    int sBottom = !!(rows - 1 - i);                        
 
-                int s = sLeft + sRight + sTop + sBottom;
+                    int s = sLeft + sRight + sTop + sBottom;
 
-                float left = vGrid->getVx(i, j);
-                float right = vGrid->getVx(i, j+1);
-                float top = vGrid->getVy(i, j);
-                float bottom = vGrid->getVy(i+1, j);
-                
-                float d = (-left*sLeft + right*sRight + top*sTop - bottom*sBottom)*1.5;
-                // if (i == rows/2 && j ==cols/2) printf("div:%f\n", d);
-                float newPressure = cell->getPressure(false) - d/s * cell->getDensity()*std::sqrt(cellWidth*cellHeight)/dt;
-                cell->setPressure(newPressure);
+                    float left = vGrid->getVx(i, j);
+                    float right = vGrid->getVx(i, j+1);
+                    float top = vGrid->getVy(i, j);
+                    float bottom = vGrid->getVy(i+1, j);
+                    
+                    float d = (-left*sLeft + right*sRight + top*sTop - bottom*sBottom)*1.5;
+                    // if (n == iters-1 && i == rows/2 && j == cols/2) printf("divergence: %f\n", d);
+                    // if (i == rows/2 && j ==cols/2) printf("div:%f\n", d);
+                    float newPressure = cell->getPressure(false) - d/s * cell->getDensity()*std::sqrt(cellWidth*cellHeight)/dt;
+                    cell->setPressure(newPressure);
 
-                
-                vGrid->setVx(i, j, left+d*sLeft/s);
-                vGrid->setVx(i, j+1, right-d*sRight/s);
-                vGrid->setVy(i, j, top-d*sTop/s);
-                vGrid->setVy(i+1, j, bottom+d*sBottom/s);
-
+                    
+                    vGrid->setVx(i, j, left+d*sLeft/s);
+                    vGrid->setVx(i, j+1, right-d*sRight/s);
+                    vGrid->setVy(i, j, top-d*sTop/s);
+                    vGrid->setVy(i+1, j, bottom+d*sBottom/s);
+                }
             }
         }
     }
@@ -1146,6 +1280,8 @@ void FluidGrid::advect() {
 
                 float prevX = physX - dt*vCell.getVx();
                 float prevY = physY - dt*vCell.getVy();
+                // if (i==rows/2 && j==5) printf("Vx-right: %f, prevX: %f\n",vCell.getVx(), prevX);
+                // else if (i==rows/2 && j==cols-6) printf("Vx-left: %f, prevX: %f\n", vCell.getVx(), prevX);
                 std::map<uint, float> prevProps;
                 // if (round((vCell.getVx()+vCell.getVy())*dt/std::sqrt(cellHeight*cellWidth)) == 0) {
                 if (round((vCell.getVx()+vCell.getVy())*100) == 0) {
@@ -1158,8 +1294,13 @@ void FluidGrid::advect() {
                     prevProps[G] = cell.getColor()[1];
                     prevProps[B] = cell.getColor()[2];
                 } else {
-                    prevX = std::max(0.0f, std::min(prevX, width));
-                    prevY = std::max(0.0f, std::min(prevY, height));
+                    // prevX = std::max(0.0f, std::min(prevX, width));
+                    // prevY = std::max(0.0f, std::min(prevY, height));
+                    if (round(prevX) < -0.0f) prevX = -prevX;
+                    if (round(prevX) > width) prevX = 2 * width - prevX;
+
+                    if (round(prevY) < -0.0f) prevY = -prevY;
+                    if (round(prevY) > height) prevY = 2 * height - prevY;
                     prevProps = sampleCellAtPoint(prevX, prevY);
                     // if ((0 < prevX) && (prevX < width) && (0 < prevY) && (prevY < height)) {
                     //     prevProps = sampleCellAtPoint(prevX, prevY);
@@ -1167,7 +1308,7 @@ void FluidGrid::advect() {
                 }
                 
                 if (prevProps[E] < 0) {
-                    std::cerr << "Warning: Negative energy detected in advection.\n";
+                    // std::cerr << "Warning: Negative energy detected in advection.\n";
                     prevProps[E] = 0.0f;
                 }
                 
@@ -1209,19 +1350,30 @@ void FluidGrid::advect() {
                 VelocityVector vVx = vGrid->sampleVelocityAtPoint(vxPhysX, vxPhysY);
                 float prevVxX = vxPhysX - dt*vVx.getVx();
                 float prevVxY = vxPhysY - dt*vVx.getVy();
-                prevVxX = std::max(0.0f, std::min(prevVxX, width));
-                prevVxY = std::max(0.0f, std::min(prevVxY, height));
+                if (round(prevVxX) < -0.0f) prevVxX = -prevVxX;
+                if (round(prevVxX) > width) prevVxX = 2 * width - prevVxX;
+                if (round(prevVxY) < -0.0f) prevVxY = -prevVxY;
+                if (round(prevVxY) > height) prevVxY = 2 * height - prevVxY;
+                // prevVxX = std::max(0.0f, std::min(prevVxX, width));
+                // prevVxY = std::max(0.0f, std::min(prevVxY, height));
                 if ((0 < prevVxX) && (prevVxX < width) && (0 < prevVxY) && (prevVxY < height)) {
                     newVx = vGrid->sampleVelocityAtPoint(prevVxX, prevVxY).getVx();
-                    if ((j == 0) || (j == cols)) {
-                        new_vGrid->setVx(i,j,0);
-                    } else {
-                        new_vGrid->setVx(i,j,newVx);
-                    }
-
+                    // if ((j == 0) || (j == cols)) {
+                    //     new_vGrid->setVx(i,j,0);
+                    // } else {
+                    //     new_vGrid->setVx(i,j,newVx);
+                    // }
+                    // if (j == 0) {
+                    //     new_vGrid->setVx(i, j, -new_vGrid->getVx(i, j + 1));
+                    // } else if (j == cols - 1) {
+                    //     new_vGrid->setVx(i, j + 1, -new_vGrid->getVx(i, j));
+                    // } else {
+                    //     new_vGrid->setVx(i,j,newVx);
+                    // }
+                    new_vGrid->setVx(i,j,newVx);
                     // find the max velocity in x direction for dt
-                    if (newVx > maxV) {
-                        maxV = newVx;
+                    if (std::abs(newVx) > maxV) {
+                        maxV = std::abs(newVx);
                     }
                 }
             }
@@ -1233,25 +1385,56 @@ void FluidGrid::advect() {
                 VelocityVector vVy = vGrid->sampleVelocityAtPoint(vyPhysX, vyPhysY);
                 float prevVyX = vyPhysX - dt*vVy.getVx();
                 float prevVyY = vyPhysY - dt*vVy.getVy();
-                prevVyX = std::max(0.0f, std::min(prevVyX, width - 1));
-                prevVyY = std::max(0.0f, std::min(prevVyY, height - 1));
+
+                if (round(prevVyX) < -0.0f) prevVyX = -prevVyX;
+                if (round(prevVyX) > width) prevVyX = 2 * width - prevVyX;
+                if (round(prevVyY) < -0.0f) prevVyY = -prevVyY;
+                if (round(prevVyY) > height) prevVyY = 2 * height - prevVyY;
+
+                // prevVyX = std::max(0.0f, std::min(prevVyX, width));
+                // prevVyY = std::max(0.0f, std::min(prevVyY, height));
                 if ((0 < prevVyX) && (prevVyX < width) && (0 < prevVyY) && (prevVyY < height)) {
                     newVy = vGrid->sampleVelocityAtPoint(prevVyX, prevVyY).getVy();
-                    if ((i == 0) || (i == rows)) {
-                        new_vGrid->setVy(i,j,0);
-                    } else {
-                        new_vGrid->setVy(i,j,newVy);
-                    }
+                    // if ((i == 0) || (i == rows)) {
+                    //     new_vGrid->setVy(i,j,0);
+                    // } else {
+                    //     new_vGrid->setVy(i,j,newVy);
+                    // }
+                    new_vGrid->setVy(i,j,newVy);
                     // find the max velocity in y direction for dt
-                    if (newVy > maxV) {
-                        maxV = newVy;
+                    if (std::abs(newVy) > maxV) {
+                        maxV = std::abs(newVy);
                     }
                 }
             }
+            // if (i < rows) {
+            //     if (j == 0) {
+            //         if (round(100*vGrid->getVx(i,j)) != 0) printf("left bound vx: %f at (%d, %d)\n",vGrid->getVx(i,j),i,j);
+            //     }
+            //     if (j == cols) {
+            //         if (round(100*vGrid->getVx(i,j)) != 0) printf("right bound vx: %f at (%d, %d)\n",vGrid->getVx(i,j),i,j);
+            //     }
+            // }
         }
     }
     grid = newGrid;
     vGrid = new_vGrid;
+    // for (i = 0; i < rows; i++) {
+    //     vGrid->setVx(i, 0, vGrid->getVx(i, 1));
+    //     vGrid->setVx(i, cols, vGrid->getVx(i, cols-1));
+    //     // float avgVx = 0.5 * (vGrid->getVx(i, 0) + vGrid->getVx(i, cols));
+    //     // vGrid->setVx(i, 0, avgVx);
+    //     // vGrid->setVx(i, cols, avgVx);
+    //     // vGrid->setVx(i, 0, 0);
+    //     // vGrid->setVx(i, cols, 0);
+    // }
+    // for (j = 0; j < cols; j++) {
+    //     vGrid->setVy(0, j, vGrid->getVy(1, j));
+    //     vGrid->setVy(rows, j, vGrid->getVy(rows-1, j));
+    //     // vGrid->setVy(0, j, 0);
+    //     // vGrid->setVy(rows, j, 0);
+    // }
+
 }
 
 void FluidGrid::setVelocities(bool setE=false, bool noRecalc=false) {
@@ -1273,7 +1456,7 @@ void FluidGrid::setVelocities(bool setE=false, bool noRecalc=false) {
                 if (newE >= KE) {
                     cell->sete(newE - KE);
                 } else {
-                    std::cerr << "Warning: Total energy less than kinetic energy.\n";
+                    // std::cerr << "Warning: Total energy less than kinetic energy.\n";
                     cell->sete(0.0f); // Prevent negative internal energy
                 }
                 // cell->sete(cell->getE() - 0.5*cell->getDensity()*(v.getMag()*v.getMag()));
@@ -1299,10 +1482,13 @@ void FluidGrid::setVelocities(bool setE=false, bool noRecalc=false) {
                 printf("setE=%d noRe=%d\n",setE,noRecalc);
                 assert(false); // Debug immediately
             }
+            if (cell->getTemp(false)) {
+                maxT = cell->getTemp(false);
+            }
             totMass += cell->getMass(false);
         }
     }
-    printf("tot mass: %f\n",totMass);
+    // printf("tot mass: %f\n",totMass);
 }
 
 void FluidGrid::update(SDL_Event event) {
@@ -1382,22 +1568,46 @@ void FluidGrid::update(SDL_Event event) {
                 case SDLK_p:
                     densityDisplay = 0;
                     temperatureDisplay = 0;
+                    gravPotentialDisplay = 0;
+                    energyDisplay = 0;
                     pressureDisplay = !(pressureDisplay);
                     printf("%f\n", vGrid->getVy((rows)/2,(cols)/2));
                     break;
                 case SDLK_d:
                     pressureDisplay = 0;
                     temperatureDisplay = 0;
+                    gravPotentialDisplay = 0;
+                    energyDisplay = 0;
                     densityDisplay = !(densityDisplay);
+                    printf("dt: %f\n", 0.1 * std::min(cellWidth, cellHeight)/maxV);
                     break;
                 case SDLK_t:
                     densityDisplay = 0;
                     pressureDisplay = 0;
+                    gravPotentialDisplay = 0;
+                    energyDisplay = 0;
                     temperatureDisplay = !(temperatureDisplay);
+                    printf("maxT: %f\n", maxT);
                     break;
                 case SDLK_0:
                     gravityFlag = !(gravityFlag);
-                    printf("gravity\n");
+                    break;
+                case SDLK_u:
+                    densityDisplay = 0;
+                    pressureDisplay = 0;
+                    temperatureDisplay = 0;
+                    energyDisplay = 0;
+                    gravPotentialDisplay = !(gravPotentialDisplay);
+                    printf("gravPot: %f\n",getCell(rows/2,cols/2)->getGravPotential());
+                    break;
+                case SDLK_e:
+                    densityDisplay = 0;
+                    pressureDisplay = 0;
+                    temperatureDisplay = 0;
+                    gravPotentialDisplay = 0;
+                    energyDisplay = !(energyDisplay);
+                    printf("energy: %f\n",getCell(rows/2,cols/2)->gete(false));
+                    break;
             }
 
 
@@ -1466,16 +1676,22 @@ void FluidGrid::update(SDL_Event event) {
     }
     // printf("dens:%f press:%f vyBottom:%f\n",c->getDensity(),c->getPressure(), vGrid->getVy(rows, cols/2));
     // FluidCell *c = getCell(44,0);
+    dt = 0.1 * std::min(cellWidth, cellHeight)/maxV;
     if (compressible) {
+        solveGravPotential(4);
         compressibleMomentumUpdate();
         setVelocities(true, false);
+        dt = 0.1 * std::min(cellWidth, cellHeight)/maxV;
         energyUpdate();
         setVelocities(false, true);
+        dt = 0.1 * std::min(cellWidth, cellHeight)/maxV;
         advect();
         setVelocities(false, false);
+        dt = 0.1 * std::min(cellWidth, cellHeight)/maxV;
     } else {
         projection(10);
         advect();
+        setVelocities(false, true);
         // std::cout << "Left boundary velocity: " << vGrid->getVx(rows/2, 0) << "\n";
         // std::cout << "Right boundary velocity: " << vGrid->getVx(rows/2, cols) << "\n";
         // setVelocities(false, true);
@@ -1487,8 +1703,10 @@ void FluidGrid::update(SDL_Event event) {
     // printf("advection — dens:%f press:%f\n  vxL:%f vxR:%f vyB:%f vyT:%f\n", c->getDensity(),c->getPressure(),vGrid->getVx(44,0),vGrid->getVx(44,1),vGrid->getVy(45,0),vGrid->getVy(44,0));
     
     // printf("%f\n", std::min(cellWidth, cellHeight)/maxV);
-    // dt = 0.7 * std::min(cellWidth, cellHeight)/maxV;
-    dt = std::min(0.016,0.7 * std::min(cellWidth, cellHeight)/maxV);
+    
+    // dt = 0.001;
+    // if (maxV > 0) dt = std::min(0.016,0.4 * std::min(cellWidth, cellHeight)/maxV);
+    // else dt = 0.016;
     // viscosity = 0.01*(cellWidth*cellHeight)/dt;
     // for (i = 0; i < rows; i++) {
     //     for (j = 0; j < cols; j++) {
@@ -1515,6 +1733,7 @@ void FluidGrid::force(int i, int j, float fx, float fy) {
     float vyU = vGrid->getVy(i,j);
     float vyB = vGrid->getVy(i+1,j);
     float ax = fx / mass;
+    // if (i==10 && (j == 5 || j==cols-6)) printf("ax: %f\n",ax);
     float ay = fy / mass;
     if (fx < 0) {
         vGrid->setVx(i,j,vxL+ax*dt);
@@ -1522,6 +1741,7 @@ void FluidGrid::force(int i, int j, float fx, float fy) {
         vGrid->setVx(i,j+1,vxR+ax*dt);
     }
 
+    // if (i==10 && (j == 5 || j==cols-6)) printf("vxL: %f, vxR: %f\n",vGrid->getVx(i,j),vGrid->getVx(i,j+1));
     // vGrid->setVx(i,j,vxL+ax*dt);
     // vGrid->setVx(i,j+1,vxR+ax*dt);
     if (j == 0) {
@@ -1587,6 +1807,8 @@ class Simulator {
             float thisMaxDensity = 0;
             float thisMaxTemperature = 0;
             float thisMinTemperature = 0;
+            float thisMinGP = 0;
+            float thisMaxe = 0;
             for (i = 0; i < rows; i++) {
                 for (j = 0; j < cols; j++) {
                     
@@ -1596,9 +1818,11 @@ class Simulator {
                     //     maxMass = mass;
                     // }
                     if (mass > thisMaxMass) thisMaxMass = mass;
-                    float pressure = grid->getCell(i,j)->getPressure();
+                    float pressure = grid->getCell(i,j)->getPressure(false);
                     float density = grid->getCell(i,j)->getDensity();
-                    float temperature = grid->getCell(i,j)->getTemp();
+                    float temperature = grid->getCell(i,j)->getTemp(false);
+                    float gravPotential = grid->getCell(i,j)->getGravPotential();
+                    float e = grid->getCell(i,j)->gete(false);
 
                     if (density > thisMaxDensity) thisMaxDensity = density;
                     // if (thisMaxDensity > maxDensity) maxDensity = thisMaxDensity;
@@ -1608,6 +1832,8 @@ class Simulator {
                         thisMinPressure = pressure;
                     }
                     if (temperature > thisMaxTemperature) thisMaxTemperature = temperature;
+                    if (gravPotential < thisMinGP) thisMinGP = gravPotential;
+                    if (e > thisMaxe) thisMaxe = e;
                     // if (pressure > maxPressure) {
                     //     maxPressure = pressure;
                     // } else if (pressure < minPressure) {
@@ -1639,6 +1865,14 @@ class Simulator {
                             // assert(false); // Debug immediately
                         }
                         SDL_SetRenderDrawColor(renderer, 0, scaled_temp, 0, 255);
+                    } else if (grid->gravPotentialDisplay) {
+                        float scaled_pot = std::max(0.0f,std::min(255.0f,gravPotential/minGP * 255));
+                        // if (i == rows/2 && j == cols/2) printf("scaledGP:%f\n",gravPotential/minGP);
+                        SDL_SetRenderDrawColor(renderer, 255, scaled_pot, 0, 255);
+
+                    } else if (grid->energyDisplay) {
+                        float scaled_e = std::max(0.0f,std::min(255.0f,e/maxe * 255));
+                        SDL_SetRenderDrawColor(renderer, scaled_e, 0, 0, 255);
                     } else {
                         // float mass = grid->getActive()[i]->getMass();
                         // FluidCell *cell = grid->getActive()[i];
@@ -1663,13 +1897,15 @@ class Simulator {
                     SDL_RenderFillRect(renderer, &rect);
                 }
             }
-            SDL_RenderPresent(renderer);
+            // SDL_RenderPresent(renderer);
             maxPressure = thisMaxPressure;
             minPressure = thisMinPressure;
             maxDensity = thisMaxDensity;
             maxMass = thisMaxMass;
             maxTemperature = thisMaxTemperature;
             minTemperature = thisMinTemperature;
+            minGP = thisMinGP; // grav potential
+            maxe = thisMaxe;
             // printf("maxtemp:%f\n",maxTemperature);
             // thisMaxDensity = 1;
             // thisMinPressure = -1;
@@ -1680,7 +1916,8 @@ class Simulator {
         void step(SDL_Event event) {
             grid->update(event);
             drawCells();
-            SDL_Delay(grid->getdt()*1000);  // setting some Delay
+            // SDL_Delay(grid->getdt()*1000);  // setting some Delay
+            SDL_Delay(16);
         }
 
         void freeSim() {
@@ -1704,6 +1941,8 @@ class Simulator {
         float maxDensity = 1;
         float maxTemperature = 1;
         float minTemperature = 0;
+        float minGP = 0;
+        float maxe = 0;
 };
 
 
@@ -1741,6 +1980,7 @@ int main(int argv, char **argc) {
     uint pause = 0;
     while(!(event.type == SDL_QUIT)){
         if (!pause) sim.step(event);
+        sim.drawGridLines();
         SDL_PollEvent(&event);  // Catching the poll event.
         if (event.key.type == SDL_KEYDOWN) {
             // printf("key clicked\n");
