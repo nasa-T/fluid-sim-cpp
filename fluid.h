@@ -11,6 +11,7 @@ namespace consts {
     const float kb = 1.380649e-23;
     const float Na = 6.02214076e23;
     const float r = kb*Na;
+    const float QH_He = 4.3e-12;
     
     const float HCv = 10730;
 
@@ -18,8 +19,8 @@ namespace consts {
     const double EARTH_ORBIT = 1.5e11;
     const double EARTH_MASS = 6e24;
     const double SUN_MASS = 2e30;
-    const double G = 6.67e-11;
-    // const double G = 6.67e-1;
+    // const double G = 6.67e-11;
+    const double G = 6.67e-11; // in 2D
     const double PI = M_PI;
     // const double GRID_WIDTH = 1.4E9;
     // const double GRID_HEIGHT = 1.4E9;
@@ -48,6 +49,8 @@ const uint R = 5;
 const uint G = 6;
 const uint B = 7;
 const uint GRAVITY = 8;
+const uint HYDROGEN = 9;
+const uint HELIUM = 10;
 // mouse modes
 const uint SMOKE = 0;
 const uint VELOCITY = 1;
@@ -64,24 +67,24 @@ struct position {
         float x, y;
 };
 
-float coolingFunction(float T) {
-    if (T < 1e4) {
-        return 0; // Negligible atomic cooling below 10,000 K
-    } else if (T < 1e5) {
-        return 1e-22 * T; // Line cooling scales linearly
-    } else if (T < 1e6) {
-        return 1e-23 * T * T; // Bremsstrahlung and line cooling
-    } else {
-        return 1e-24 * sqrt(T); // Bremsstrahlung dominant
-    }
-}
+// float coolingFunction(float T) {
+//     if (T < 1e4) {
+//         return 0; // Negligible atomic cooling below 10,000 K
+//     } else if (T < 1e5) {
+//         return 1e-22 * T; // Line cooling scales linearly
+//     } else if (T < 1e6) {
+//         return 1e-23 * T * T; // Bremsstrahlung and line cooling
+//     } else {
+//         return 1e-24 * sqrt(T); // Bremsstrahlung dominant
+//     }
+// }
 
 float combinedCoolingFunction(float rho, float T) {
     // Constants
     const float C_mol = 1e-27; // Molecular cooling coefficient
     const float C_dust = 1e-25; // Dust cooling coefficient
     const float C_line = 1e-22; // Atomic line cooling coefficient
-    
+
     float Lambda_mol = 0.0f;
     float Lambda_line = 0.0f;
     float Lambda_dust = 0.0f;
@@ -101,7 +104,7 @@ float combinedCoolingFunction(float rho, float T) {
     if (T < 1000) {
         Lambda_dust = C_dust * std::sqrt(T);
     }
-    
+
     // Bremsstrahlung cooling
     if (T > 1e6) {
         Lambda_brem = 1e-24 * std::sqrt(T);
@@ -109,6 +112,63 @@ float combinedCoolingFunction(float rho, float T) {
 
     // Total cooling
     return rho * rho * (Lambda_mol + Lambda_line + Lambda_dust);
+}
+
+float coolingFunction(float rho, float T, float Z) {
+    // Constants
+    const float C_H = 7.5e-19;     // Hydrogen cooling coefficient
+    const float C_He = 9.1e-27;    // Helium cooling coefficient
+    const float C_ff = 1.42e-27;   // Free-free cooling coefficient
+    const float C_mol = 1e-27;     // Molecular cooling coefficient
+    const float C_dust = 1e-25;    // Dust cooling coefficient
+    const float Z_solar = 0.02;    // Solar metallicity
+
+    // Hydrogen and Helium cooling
+    float Lambda_H_He = 0.0f;
+    if (T > 10000) {
+        Lambda_H_He = C_H * exp(-118400 / T) + C_He * exp(-473600 / T);
+    }
+
+    // Metal cooling
+    float Lambda_metal = 0.0f;
+    if (T > 1e4 && T <= 1e5) {
+        Lambda_metal = Z / Z_solar * 1e-23 * T;
+    } else if (T > 1e5 && T <= 1e6) {
+        Lambda_metal = Z / Z_solar * 1e-22;
+    } else if (T > 1e6) {
+        Lambda_metal = Z / Z_solar * 1e-23 / T;
+    }
+
+    // Free-free cooling
+    float Lambda_ff = 0.0f;
+    if (T > 1e7) {
+        Lambda_ff = C_ff * sqrt(T);
+    }
+
+    // Molecular cooling
+    float Lambda_mol = 0.0f;
+    if (T < 2000) {
+        Lambda_mol = C_mol * pow(T, 4.5);
+    }
+
+    // Dust cooling
+    float Lambda_dust = 0.0f;
+    if (T < 1000) {
+        Lambda_dust = C_dust * sqrt(T);
+    }
+
+    // Total net cooling rate
+    float Lambda_net = Lambda_H_He + Lambda_metal + Lambda_ff + Lambda_mol + Lambda_dust;
+
+    // Return cooling rate per unit volume
+    return rho * rho * Lambda_net; // Cooling rate in erg/cm^3/s
+}
+
+float fusionRate(float rho, float T, float X) {
+    const float epsilon0 = 1.07e-19; // J m^3 kg^-2 s^-1
+    float T6 = T / 1e6; // Temperature in millions of Kelvin
+    if (T6 < 1) return 0; // No fusion below 1 million K
+    return epsilon0 * rho * X * X * pow(T6, 4);
 }
 
 class Neighbors;
@@ -126,6 +186,10 @@ class FluidGrid {
         void freeGrid();
 
         std::map<uint, float> sampleCellAtPoint(float x, float y);
+        
+        std::map<uint, float> sampleCellAtPoint(position xy);
+
+        std::map<uint, float> propsAtij(int i, int j);
 
         void force(int i, int j, float fx, float fy);
 
@@ -143,7 +207,13 @@ class FluidGrid {
 
         void projection(int iters);
 
+        float calculateFlux(float quantity, int i, int j);
+
+        std::map<uint,float> calculateFlux(std::map<uint,float> propDict, int i, int j, float v);
+
         void advect();
+
+        void FFSLadvect();
 
         void setVelocities(bool setE, bool noRecalc);
 
@@ -174,7 +244,8 @@ class FluidGrid {
     private:
         float width, height;
         float cellWidth, cellHeight;
-        float dt, maxV, maxT;
+        float dt, maxV, maxT, totalMass;
+        float massFactor = 1;
         int rows, cols, cells;
         FluidCell **grid;
         FluidCell **newGrid;
