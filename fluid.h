@@ -67,6 +67,21 @@ struct position {
         float x, y;
 };
 
+std::vector<std::string> split(std::string s, const std::string delimiter) {
+    std::vector<std::string> tokens;
+    std::string token;
+    size_t last = 0; 
+    size_t next = 0; 
+    while ((next = s.find(delimiter, last)) != std::string::npos) {   
+        token = s.substr(last, next-last);
+        tokens.push_back(token);   
+        last = next + delimiter.length(); 
+    } 
+    tokens.push_back(s.substr(last));
+
+    return tokens;
+}
+
 // float coolingFunction(float T) {
 //     if (T < 1e4) {
 //         return 0; // Negligible atomic cooling below 10,000 K

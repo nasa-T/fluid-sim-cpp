@@ -1,5 +1,6 @@
 #include <cmath>
 #include <iostream>
+#include <fstream>
 #include "fluid.h"
 
 #include <map>
@@ -17,6 +18,8 @@ GLFWwindow* window;
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtx/norm.hpp>
 using namespace glm;
+
+#include <chrono>
 
 // #include <omp.h>
 
@@ -691,12 +694,12 @@ FluidGrid::FluidGrid(float width, float height, int r, int c, float dt, bool com
         for (j = 0; j < cols; j++) {
             //random mass for now
             // float mass = (std::rand() % 100) * 1e16;
-            float mass = 3e16;
+            float mass = 1e17;
             std::vector<uint> color = {0, 0, 0};
             grid[i][j] = FluidCell(mass, cellWidth, cellHeight, 50, 0,0,0,comp);
             if ((i == rows/2 && (j == cols/2 || j == cols/2-1)) || (i == rows/2-1 && (j == cols/2 || j == cols/2-1))) {
                 // grid[i][j] = FluidCell(1e21, cellWidth, cellHeight, 50, 0,0,0,comp);
-                grid[i][j] = FluidCell(5e17, cellWidth, cellHeight, 50, 0,0,0,comp);
+                grid[i][j] = FluidCell(7e17, cellWidth, cellHeight, 50, 0,0,0,comp);
             }
             if (i < rows/5 || i > 4*rows/5 || j < cols/5 || j > 4*cols/5) {
                 // grid[i][j] = FluidCell(1e22, cellWidth, cellHeight, 10, 0,0,0,comp);
@@ -2284,19 +2287,19 @@ void FluidGrid::update(SDL_Event event) {
     // printf("dens:%f press:%f vyBottom:%f\n",c->getDensity(),c->getPressure(), vGrid->getVy(rows, cols/2));
     // FluidCell *c = getCell(44,0);
 
-    dt = 0.4 * std::min(cellWidth, cellHeight)/maxV;
+    dt = 0.2 * std::min(cellWidth, cellHeight)/maxV;
     if (compressible) {
         solveGravPotential(4);
         compressibleMomentumUpdate();
         setVelocities(true, false);
-        dt = 0.4 * std::min(cellWidth, cellHeight)/maxV;
+        dt = 0.2 * std::min(cellWidth, cellHeight)/maxV;
         energyUpdate();
         setVelocities(false, true);
-        dt = 0.4 * std::min(cellWidth, cellHeight)/maxV;
+        dt = 0.2 * std::min(cellWidth, cellHeight)/maxV;
         // advect();
         FFSLadvect();
         setVelocities(false, false);
-        dt = 0.4 * std::min(cellWidth, cellHeight)/maxV;
+        dt = 0.2 * std::min(cellWidth, cellHeight)/maxV;
     } else {
         projection(10);
         advect();
@@ -2377,7 +2380,7 @@ void FluidGrid::force(int i, int j, float fx, float fy) {
 
 class Simulator {
     public:
-        Simulator(float width, float height, int c, int r, bool comp): width(width), height(height), rows(r), cols(c), compressible(comp) {
+        Simulator(float width, float height, int c, int r, bool comp, bool display=true, std::string fn=""): width(width), height(height), rows(r), cols(c), compressible(comp), display(display), filename(fn) {
             dt = 0.016;
             // in meters per pixel
             SCALE_H = height / consts::GRID_HEIGHT;
@@ -2385,11 +2388,13 @@ class Simulator {
             cells = rows * cols;
             grid = (FluidGrid *) malloc(sizeof(FluidGrid));
             grid[0] = FluidGrid(width, height, rows, cols, dt, compressible);
-            
-            SDL_Init(SDL_INIT_VIDEO);       // Initializing SDL as Video
-            SDL_CreateWindowAndRenderer(consts::GRID_WIDTH, consts::GRID_HEIGHT, 0, &window, &renderer);
-            SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);      // setting draw color
-            SDL_RenderClear(renderer);
+            output.open(filename);
+            if (display) {
+                SDL_Init(SDL_INIT_VIDEO);       // Initializing SDL as Video
+                SDL_CreateWindowAndRenderer(consts::GRID_WIDTH, consts::GRID_HEIGHT, 0, &window, &renderer);
+                SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);      // setting draw color
+                SDL_RenderClear(renderer);
+            }
             
         }
 
@@ -2409,7 +2414,7 @@ class Simulator {
         void drawCells() {
             int i, j;
             // save a max and min pressure for the current iteration so 
-                // boundaries don't update before the full render
+                // max/min boundaries don't update before the full render
             float thisMaxPressure = 0;
             float thisMinPressure = 0;
             float thisMaxMass = 0;
@@ -2529,28 +2534,65 @@ class Simulator {
             
         }
         
-        void step(SDL_Event event) {
+        void step(SDL_Event event, bool save=false) {
             grid->update(event);
-            drawCells();
+            t += grid->getdt();
+            if (save) {
+                saveSim();
+            } 
+            if (display) {
+                drawCells();
+            }
+            // drawCells();
             // SDL_Delay(grid->getdt()*1000);  // setting some Delay
-            SDL_Delay(16);
+            if (display) {
+                SDL_Delay(1);
+            }
+        }
+
+        void saveSim() {
+            int i,j;
+            for (i = 0; i < rows; i++) {
+                for (j = 0; j < cols; j++) {   
+                    FluidCell cell = *grid->getCell(i,j);
+                    float mass = cell.getMass();
+                    float pressure = cell.getPressure(false);
+                    float density = cell.getDensity();
+                    float temperature = cell.getTemp(false);
+                    float gravPotential = cell.getGravPotential();
+                    float e = cell.gete(false);
+                    output << "//" << mass << "," << cell.getX() << "," << cell.getY() << "," << cell.getZ() << "," << temperature << "," << pressure << "," << e << "," << gravPotential;
+                }
+                output << "//\n";
+            }
+            output << "//t: " << t;
+            output << "//\n";
         }
 
         void freeSim() {
             grid->freeGrid();
-            
             free(grid);
+            output.close();
         }
+
+        float getT() {
+            // time passed
+            return t;
+        }
+
         float SCALE_H, SCALE_W;
         float width, height;
         FluidGrid *grid;
     private:
-        bool compressible;
+        bool compressible, display;
         float dt;
         int rows, cols, cells;
         SDL_Renderer *renderer = NULL;
         SDL_Window *window = NULL;
         SDL_Surface *screenSurface;
+        std::ofstream output = std::ofstream();
+        std::string filename = "";
+        float t = 0;
         float maxMass = 255;
         float maxPressure = 1;
         float minPressure = 0;
@@ -2563,17 +2605,19 @@ class Simulator {
 
 
 int main(int argv, char **argc) {
-    if (argv > 6) std::srand((unsigned) atoi(argc[6]));
+    if (argv > 8) std::srand((unsigned) atoi(argc[8]));
     else std::srand((unsigned) std::time(NULL));
     float width, height;
     int c, r;
-    bool comp;
-    if (argv < 6) {
+    bool comp, save, display;
+    if (argv < 8) {
         width = atoi(argc[1]);
         height = atoi(argc[2]);
         c = atoi(argc[3]);
         r = atoi(argc[4]);
         comp = false;
+        display = (bool)(!!atoi(argc[5]));
+        save = (bool)(!!atoi(argc[6]));
         // sim.drawCells();
     } else {
         width = atoi(argc[2]);
@@ -2581,38 +2625,62 @@ int main(int argv, char **argc) {
         c = atoi(argc[4]);
         r = atoi(argc[5]);
         if (atoi(argc[1])) comp = true; else comp = false;
+        display = (bool)(!!atoi(argc[6]));
+        save = (bool)(!!atoi(argc[7]));
         // comp = atoi(argc[1]);
         // Simulator sim(atoi(argc[2]), atoi(argc[3]), atoi(argc[4]), atoi(argc[5]), (bool)atoi(argc[1]));
         
     }
-
+    int maxT = 1000000;
+    std::string filename = "/Volumes/Give Me Space/outputGrid1000000.txt";
     // Simulator sim(atoi(argc[1]), atoi(argc[2]), atoi(argc[3]), atoi(argc[4]), false);
-    Simulator sim(width, height, c, r, comp);
-    sim.drawCells();
+    Simulator sim(width, height, c, r, comp, display, filename);
+    // sim.drawCells();
     SDL_Event event;
     // 
     // sim.step(event);
     // sim.drawGridLines();
     uint pause = 0;
-    while(!(event.type == SDL_QUIT)){
-        if (!pause) sim.step(event);
+    uint now = (unsigned) std::time(NULL);
+    const std::chrono::time_point<std::chrono::steady_clock> start =
+        std::chrono::steady_clock::now();
+    
+    float progress = 0.0;
+    
+    while(!(event.type == SDL_QUIT) and sim.getT() < maxT){
+        if (!pause) {
+            sim.step(event, save);
+            // printf("%f\n", sim.getT());   
+        }
         // sim.drawGridLines();
         SDL_PollEvent(&event);  // Catching the poll event.
-        if (event.key.type == SDL_KEYDOWN) {
-            // printf("key clicked\n");
-            if (event.key.keysym.sym == SDLK_SPACE) pause = !pause;
+        // if (event.key.type == SDL_KEYDOWN) {
+        //     // printf("key clicked\n");
+        //     if (event.key.keysym.sym == SDLK_SPACE) pause = !pause;
+        // }
+        int barWidth = 70;
+
+        std::cout << "[";
+        int pos = barWidth * progress;
+        for (int i = 0; i < barWidth; ++i) {
+            if (i < pos) std::cout << "=";
+            else if (i == pos) std::cout << ">";
+            else std::cout << " ";
         }
-        if (event.type == SDL_MOUSEBUTTONDOWN) {
-            SDL_MouseButtonEvent buttonEvent = event.button;
-            Sint32 x = buttonEvent.x;
-            Sint32 y = buttonEvent.y;
-            float physY = sim.height - y * sim.SCALE_H;
-            float physX = x * sim.SCALE_W;
-            VelocityVector v = sim.grid->vGrid->sampleVelocityAtPoint(physX,physY);
-            // FluidCell *clickedCell = sim.grid->getCell(i, j);
-            // printf("%f %f\n", v.getVx(), v.getVy());
-        }
+        std::cout << "] " << int(progress * 100.0) << " %\r";
+        std::cout.flush();
+
+        progress = sim.getT()/maxT; // for demonstration only
     }
+    std::cout << "\n";
+    const auto end = std::chrono::steady_clock::now();
+    std::cout << "real time elapsed: ";
+    std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()/1000.0f << "\nsim time elapsed: " << sim.getT() << "\n";
+    // std::cout << "real time elapsed: " << (uint) (end - start) << "\nsim time elapsed: " << sim.getT() << "\n";
+    // std::cout
+    //     << "Slow calculations took "
+    //     << std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    // printf("real time elapsed: %d\nsim time elapsed: %f\n", (end-start, sim.getT());
     sim.freeSim();
     return 1;
 }
