@@ -694,7 +694,7 @@ FluidGrid::FluidGrid(float width, float height, int r, int c, float dt, bool com
         for (j = 0; j < cols; j++) {
             //random mass for now
             // float mass = (std::rand() % 100) * 1e16;
-            float mass = 1e17;
+            float mass = 2e17;
             std::vector<uint> color = {0, 0, 0};
             grid[i][j] = FluidCell(mass, cellWidth, cellHeight, 50, 0,0,0,comp);
             if ((i == rows/2 && (j == cols/2 || j == cols/2-1)) || (i == rows/2-1 && (j == cols/2 || j == cols/2-1))) {
@@ -2427,7 +2427,6 @@ class Simulator {
             for (i = 0; i < rows; i++) {
                 for (j = 0; j < cols; j++) {
                     
-            // for (i = 0; i < grid->nActive; i++) {
                     float mass = grid->getCell(i,j)->getMass();
                     // if (mass > maxMass) {
                     //     maxMass = mass;
@@ -2555,13 +2554,13 @@ class Simulator {
             for (i = 0; i < rows; i++) {
                 for (j = 0; j < cols; j++) {   
                     FluidCell cell = *grid->getCell(i,j);
-                    float mass = cell.getMass();
+                    float mass = cell.getMass(false);
                     float pressure = cell.getPressure(false);
                     float density = cell.getDensity();
                     float temperature = cell.getTemp(false);
                     float gravPotential = cell.getGravPotential();
                     float e = cell.gete(false);
-                    output << "//" << mass << "," << cell.getX() << "," << cell.getY() << "," << cell.getZ() << "," << temperature << "," << pressure << "," << e << "," << gravPotential;
+                    output << "//" << density << "," << cell.getX() << "," << cell.getY() << "," << cell.getZ() << "," << temperature << "," << pressure << "," << e << "," << gravPotential;
                 }
                 output << "//\n";
             }
@@ -2631,8 +2630,9 @@ int main(int argv, char **argc) {
         // Simulator sim(atoi(argc[2]), atoi(argc[3]), atoi(argc[4]), atoi(argc[5]), (bool)atoi(argc[1]));
         
     }
-    int maxT = 1000000;
-    std::string filename = "/Volumes/Give Me Space/outputGrid1000000.txt";
+    int maxT = 10000000;
+    // std::string filename = "/Volumes/Give Me Space/outputGrid_3.txt";
+    std::string filename = "";
     // Simulator sim(atoi(argc[1]), atoi(argc[2]), atoi(argc[3]), atoi(argc[4]), false);
     Simulator sim(width, height, c, r, comp, display, filename);
     // sim.drawCells();
