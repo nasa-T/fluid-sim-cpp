@@ -1,21 +1,22 @@
 #include <cmath>
 #include <iostream>
 #include <SDL2/SDL.h>
+// #include <SDL.h>
 #include <cstdlib>
 #include <vector>
 #include <map>
 
 namespace consts {
-    const float HMol = 1.008e-3;
-    const float HeMol = 4.003e-3;
-    const float kb = 1.380649e-23;
-    const float Na = 6.02214076e23;
-    const float r = kb*Na;
-    const float QH_He = 4.3e-12;
+    const double HMol = 1.008e-3;
+    const double HeMol = 4.003e-3;
+    const double kb = 1.380649e-23;
+    const double Na = 6.02214076e23;
+    const double r = kb*Na;
+    const double QH_He = 4.3e-12;
     
-    const float HCv = 10730;
+    const double HCv = 10730;
 
-    const float g = -9.8;
+    const double g = -9.8;
     const double EARTH_ORBIT = 1.5e11;
     const double EARTH_MASS = 6e24;
     const double SUN_MASS = 2e30;
@@ -26,15 +27,15 @@ namespace consts {
     // const double GRID_HEIGHT = 1.4E9;
     const int GRID_WIDTH = 800;
     const int GRID_HEIGHT = 800;
-    const float dt = 0.01;
+    const double dt = 0.01;
     const int N_ROWS = 100;
     const int N_COLS = 100;
-    const float delta_x = GRID_WIDTH / N_COLS;
-    const float delta_y = GRID_HEIGHT / N_ROWS;
+    const double delta_x = GRID_WIDTH / N_COLS;
+    const double delta_y = GRID_HEIGHT / N_ROWS;
 
-    // const float N_TAIL = 100;
-    const float YEAR = 365.24 * 24 * 60 * 60;
-    const float SCALE_TIME = 1;
+    // const double N_TAIL = 100;
+    const double YEAR = 365.24 * 24 * 60 * 60;
+    const double SCALE_TIME = 1;
 
     
 }
@@ -64,7 +65,7 @@ const uint MAXSOURCES = 10;
 
 struct position {
     public:
-        float x, y;
+        double x, y;
 };
 
 std::vector<std::string> split(std::string s, const std::string delimiter) {
@@ -82,7 +83,7 @@ std::vector<std::string> split(std::string s, const std::string delimiter) {
     return tokens;
 }
 
-// float coolingFunction(float T) {
+// double coolingFunction(double T) {
 //     if (T < 1e4) {
 //         return 0; // Negligible atomic cooling below 10,000 K
 //     } else if (T < 1e5) {
@@ -94,16 +95,16 @@ std::vector<std::string> split(std::string s, const std::string delimiter) {
 //     }
 // }
 
-float combinedCoolingFunction(float rho, float T) {
+double combinedCoolingFunction(double rho, double T) {
     // Constants
-    const float C_mol = 1e-27; // Molecular cooling coefficient
-    const float C_dust = 1e-25; // Dust cooling coefficient
-    const float C_line = 1e-22; // Atomic line cooling coefficient
+    const double C_mol = 1e-27; // Molecular cooling coefficient
+    const double C_dust = 1e-25; // Dust cooling coefficient
+    const double C_line = 1e-22; // Atomic line cooling coefficient
 
-    float Lambda_mol = 0.0f;
-    float Lambda_line = 0.0f;
-    float Lambda_dust = 0.0f;
-    float Lambda_brem = 0.0f;
+    double Lambda_mol = 0.0f;
+    double Lambda_line = 0.0f;
+    double Lambda_dust = 0.0f;
+    double Lambda_brem = 0.0f;
 
     // Molecular cooling (10 K < T < 2000 K)
     if (T >= 10 && T < 2000) {
@@ -129,23 +130,23 @@ float combinedCoolingFunction(float rho, float T) {
     return rho * rho * (Lambda_mol + Lambda_line + Lambda_dust);
 }
 
-float coolingFunction(float rho, float T, float Z) {
+double coolingFunction(double rho, double T, double Z) {
     // Constants
-    const float C_H = 7.5e-19;     // Hydrogen cooling coefficient
-    const float C_He = 9.1e-27;    // Helium cooling coefficient
-    const float C_ff = 1.42e-27;   // Free-free cooling coefficient
-    const float C_mol = 1e-27;     // Molecular cooling coefficient
-    const float C_dust = 1e-25;    // Dust cooling coefficient
-    const float Z_solar = 0.02;    // Solar metallicity
+    const double C_H = 7.5e-19;     // Hydrogen cooling coefficient
+    const double C_He = 9.1e-27;    // Helium cooling coefficient
+    const double C_ff = 1.42e-27;   // Free-free cooling coefficient
+    const double C_mol = 1e-27;     // Molecular cooling coefficient
+    const double C_dust = 1e-25;    // Dust cooling coefficient
+    const double Z_solar = 0.02;    // Solar metallicity
 
     // Hydrogen and Helium cooling
-    float Lambda_H_He = 0.0f;
+    double Lambda_H_He = 0.0f;
     if (T > 10000) {
         Lambda_H_He = C_H * exp(-118400 / T) + C_He * exp(-473600 / T);
     }
 
     // Metal cooling
-    float Lambda_metal = 0.0f;
+    double Lambda_metal = 0.0f;
     if (T > 1e4 && T <= 1e5) {
         Lambda_metal = Z / Z_solar * 1e-23 * T;
     } else if (T > 1e5 && T <= 1e6) {
@@ -155,33 +156,33 @@ float coolingFunction(float rho, float T, float Z) {
     }
 
     // Free-free cooling
-    float Lambda_ff = 0.0f;
+    double Lambda_ff = 0.0f;
     if (T > 1e7) {
         Lambda_ff = C_ff * sqrt(T);
     }
 
     // Molecular cooling
-    float Lambda_mol = 0.0f;
+    double Lambda_mol = 0.0f;
     if (T < 2000) {
         Lambda_mol = C_mol * pow(T, 4.5);
     }
 
     // Dust cooling
-    float Lambda_dust = 0.0f;
+    double Lambda_dust = 0.0f;
     if (T < 1000) {
         Lambda_dust = C_dust * sqrt(T);
     }
 
     // Total net cooling rate
-    float Lambda_net = Lambda_H_He + Lambda_metal + Lambda_ff + Lambda_mol + Lambda_dust;
+    double Lambda_net = Lambda_H_He + Lambda_metal + Lambda_ff + Lambda_mol + Lambda_dust;
 
     // Return cooling rate per unit volume
     return rho * rho * Lambda_net; // Cooling rate in erg/cm^3/s
 }
 
-float fusionRate(float rho, float T, float X) {
-    const float epsilon0 = 1.07e-19; // J m^3 kg^-2 s^-1
-    float T6 = T / 1e6; // Temperature in millions of Kelvin
+double fusionRate(double rho, double T, double X) {
+    const double epsilon0 = 1.07e-19; // J m^3 kg^-2 s^-1
+    double T6 = T / 1e6; // Temperature in millions of Kelvin
     if (T6 < 1) return 0; // No fusion below 1 million K
     return epsilon0 * rho * X * X * pow(T6, 4);
 }
@@ -194,23 +195,23 @@ class FluidCell;
 class Source;
 class FluidGrid {
     public:
-        FluidGrid(float width, float height, int r, int c, float dt, bool comp);
+        FluidGrid(double width, double height, int r, int c, double dt, bool comp);
 
         FluidCell *getCell(int i, int j);
 
         void freeGrid();
 
-        std::map<uint, float> sampleCellAtPoint(float x, float y);
+        std::map<uint, double> sampleCellAtPoint(double x, double y);
         
-        std::map<uint, float> sampleCellAtPoint(position xy);
+        std::map<uint, double> sampleCellAtPoint(position xy);
 
-        std::map<uint, float> propsAtij(int i, int j);
+        std::map<uint, double> propsAtij(int i, int j);
 
-        void force(int i, int j, float fx, float fy);
+        void force(int i, int j, double fx, double fy);
 
         void diffuse(int iters);
 
-        std::map<char, float> getxyFromij(int i, int j);
+        std::map<char, double> getxyFromij(int i, int j);
 
         void massContinuity();
 
@@ -222,9 +223,9 @@ class FluidGrid {
 
         void projection(int iters);
 
-        float calculateFlux(float quantity, int i, int j);
+        double calculateFlux(double quantity, int i, int j);
 
-        std::map<uint,float> calculateFlux(std::map<uint,float> propDict, int i, int j, float v);
+        std::map<uint,double> calculateFlux(std::map<uint,double> propDict, int i, int j, double v);
 
         void advect();
 
@@ -236,7 +237,7 @@ class FluidGrid {
 
         std::vector<FluidCell*> getActive();
 
-        float getdt() {
+        double getdt() {
             return dt;
         }
         unsigned int nActive;
@@ -257,20 +258,20 @@ class FluidGrid {
         uint energyDisplay = 0;
         bool compressible;
     private:
-        float width, height;
-        float cellWidth, cellHeight;
-        float dt, maxV, maxT, totalMass;
-        float massFactor = 1;
+        double width, height;
+        double cellWidth, cellHeight;
+        double dt, maxV, maxT, totalMass;
+        double massFactor = 1;
         int rows, cols, cells;
         FluidCell **grid;
         FluidCell **newGrid;
         std::vector<FluidCell*> activeCells;
-        float SCALE_H, SCALE_W;
+        double SCALE_H, SCALE_W;
         std::vector<uint> color = {1,1,0};
         VelocityGrid *new_vGrid;
         Source *sourceArray;
         std::vector<Source*> sourceList;
-        float viscosity = 0;
+        double viscosity = 0;
 };
   
   class Simulator;

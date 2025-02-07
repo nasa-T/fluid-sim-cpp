@@ -1,5 +1,8 @@
+all: fluid display
+
 fluid: fluid.cpp fluid.h
-	g++ -std=c++17 -o fluid fluid.cpp -lSDL2
+	g++-14 -std=c++17 -fopenmp -I/usr/local/Cellar/libomp/19.1.7/include -L/usr/local/Cellar/libomp/19.1.7/lib -I/usr/local/include -L/usr/local/lib -I/usr/local/Cellar/sdl2/2.30.12/include -L/usr/local/Cellar/sdl2/2.30.12/lib -lSDL2 -lomp -lgsl -pg -o fluid fluid.cpp
+	# g++ -std=c++17 -o fluid fluid.cpp -lSDL2
 
 display: simDisplayer.cpp
-	g++ -std=c++17 -o display simDisplayer.cpp -lSDL2
+	# gcc -std=c++17 -o display simDisplayer.cpp -lSDL2
