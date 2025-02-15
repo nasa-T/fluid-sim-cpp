@@ -697,7 +697,11 @@ FluidGrid::FluidGrid(double width, double height, int r, int c, double dt, bool 
             grid[i][j] = FluidCell(mass, cellWidth, cellHeight, 50, 0,0,0,comp);
             if ((i == rows/2 && (j == cols/2 || j == cols/2-1)) || (i == rows/2-1 && (j == cols/2 || j == cols/2-1))) {
                 // grid[i][j] = FluidCell(1e21, cellWidth, cellHeight, 50, 0,0,0,comp);
-                grid[i][j] = FluidCell(7e17, cellWidth, cellHeight, 50, 0,0,0,comp);
+                grid[i][j] = FluidCell(5e17, cellWidth, cellHeight, 50, 0,0,0,comp);
+            }
+            if (i == 25 && j == 25) {
+                // grid[i][j] = FluidCell(1e21, cellWidth, cellHeight, 50, 0,0,0,comp);
+                // grid[i][j] = FluidCell(1e18, cellWidth, cellHeight, 50, 0,0,0,comp);
             }
             if (i < rows/5 || i > 4*rows/5 || j < cols/5 || j > 4*cols/5) {
                 // grid[i][j] = FluidCell(1e22, cellWidth, cellHeight, 10, 0,0,0,comp);
@@ -1419,6 +1423,8 @@ void FluidGrid::compressibleMomentumUpdate() {
 
             double E = cell->getE(false);
             
+            
+
             // // pressure-work term
             // double div = (right-left)/cellWidth + (top-bottom)/cellHeight;
             // double pdiv = pressure * div;
@@ -1431,7 +1437,7 @@ void FluidGrid::compressibleMomentumUpdate() {
             //     E += gravWork*getdt();
             // }
             // cell->setE(E);
-
+            // auto start = std::chrono::steady_clock::now();
             // viscosity term
             std::map<char,double> xyM, xyB, xyL, xyT, xyR;
             double laplacianVx, laplacianVy;
@@ -1449,7 +1455,12 @@ void FluidGrid::compressibleMomentumUpdate() {
             top += laplacianVy*viscosity*getdt();
             new_vGrid->setVx(i,j,left);
             new_vGrid->setVy(i,j,top);
+
+            // auto visc = std::chrono::steady_clock::now();
+
             double grav = getCell(i,j)->getGravPotential();
+
+            
             // if (i < rows-1) {
             //     double pressureB = getCell(i+1,j)->getPressure();
             //     double gravB = getCell(i+1,j)->getGravPotential();
@@ -1476,7 +1487,12 @@ void FluidGrid::compressibleMomentumUpdate() {
             double gradYP = (pressure-pressureB)/(2*cellHeight);
             double gradYG = -(grav-gravB)/(2*cellHeight);
             std::map<char,double> xyVy = vGrid->getxyFromijVy(i+1,j);
-            mass = sampleCellAtPoint(xyVy['x'],xyVy['y'])[MASS];
+            // mass = sampleCellAtPoint(xyVy['x'],xyVy['y'])[MASS];
+            if (i < rows-1) {
+                mass = (cell->getMass(false) + getCell(i+1,j)->getMass(false))/2;
+            } else {
+                mass = cell->getMass(false)/2;
+            }
             density = mass/(cellHeight*cellWidth);
             double newBVy;
             if (round(density) == 0) {
@@ -1485,7 +1501,8 @@ void FluidGrid::compressibleMomentumUpdate() {
                 newBVy = bottom-(1/density)*gradYP*dt+gradYG*dt;
             }
             new_vGrid->setVy(i+1,j,newBVy);
-            
+            // auto GPy = std::chrono::steady_clock::now();
+
             // if (j < cols-1) {
             //     double pressureR = getCell(i,j+1)->getPressure();
             //     double gravR = getCell(i,j+1)->getGravPotential();
@@ -1516,13 +1533,14 @@ void FluidGrid::compressibleMomentumUpdate() {
             }
             double gradXP = (pressureR-pressure)/(2*cellWidth);
             double gradXG = -(gravR-grav)/(2*cellWidth);
-            if (!std::isfinite(gradXP)) {
-                std::cerr << "NaN detected in grad X at cell (" << i << ", " << j << ") pressure(i,j): " << pressure << " density: " << cell->getDensity() << "\n";
-                // assert(false); // Debug immediately
-            }
             // if (i == rows/2 && j ==cols/2) printf("gradX:%f\n",gradX);
             std::map<char,double> xyVx = vGrid->getxyFromijVx(i,j+1);
-            mass = sampleCellAtPoint(xyVx['x'],xyVx['y'])[MASS];
+            // mass = sampleCellAtPoint(xyVx['x'],xyVx['y'])[MASS];
+            if (j < cols-1) {
+                mass = (cell->getMass(false) + getCell(i,j+1)->getMass(false))/2;
+            } else {
+                mass = cell->getMass(false)/2;
+            }
             density = mass/(cellHeight*cellWidth);
             double newRVx;
             if (round(density) == 0) {
@@ -1530,11 +1548,15 @@ void FluidGrid::compressibleMomentumUpdate() {
             } else {
                 newRVx = right-(1/density)*gradXP*dt+gradXG*dt;
             }
-            if (!std::isfinite(newRVx)) {
-                std::cerr << "NaN detected in vxR at cell (" << i << ", " << j << ") old vxR: " << right << " density: " << density << "\n";
-                // assert(false); // Debug immediately
-            }
             new_vGrid->setVx(i,j+1,newRVx);
+            // auto GPx = std::chrono::steady_clock::now();
+
+            // std::cout << "visc: ";
+            // std::cout << std::chrono::duration_cast<std::chrono::microseconds>(visc - start).count() << "\n";
+            // std::cout << "vy: ";
+            // std::cout << std::chrono::duration_cast<std::chrono::microseconds>(GPy - visc).count() << "\n";
+            // std::cout << "vx: ";
+            // std::cout << std::chrono::duration_cast<std::chrono::microseconds>(GPx - GPy).count() << "\n";
             // if (i == rows/2 && j ==cols/2) printf("newVx:%f\n",newRVx);
         
         }
@@ -1545,7 +1567,7 @@ void FluidGrid::compressibleMomentumUpdate() {
 void FluidGrid::energyUpdate() {
     int i, j;
     // #pragma omp parallel for collapse(2)
-    #pragma omp parallel for schedule(dynamic, 4)
+    // #pragma omp parallel for schedule(dynamic, 4)
     for (i = 0; i < rows; i++) {
         for (j = 0; j < cols; j++) {
             FluidCell *cell = getCell(i,j);
@@ -1844,6 +1866,7 @@ void FluidGrid::advect() {
 void FluidGrid::FFSLadvect() {
     int i, j;
     #pragma omp parallel for collapse(2)
+    // #pragma omp parallel for schedule(dynamic, 4)
     for (i = 0; i < rows+1; i++) {
         for (j = 0; j < cols+1; j++) {
             if ((i < rows) && (j < cols)) {
@@ -2290,18 +2313,36 @@ void FluidGrid::update(SDL_Event event) {
     // printf("dens:%f press:%f vyBottom:%f\n",c->getDensity(),c->getPressure(), vGrid->getVy(rows, cols/2));
     // FluidCell *c = getCell(44,0);
 
-    dt = 0.2 * std::min(cellWidth, cellHeight)/maxV;
+    dt = 0.1 * std::min(cellWidth, cellHeight)/maxV;
     if (compressible) {
-        solveGravPotential(2);
+        auto start = std::chrono::steady_clock::now();
+        solveGravPotential(4);
+        auto grav = std::chrono::steady_clock::now();
         compressibleMomentumUpdate();
+        auto momentum = std::chrono::steady_clock::now();
         setVelocities(true, false);
-        dt = 0.2 * std::min(cellWidth, cellHeight)/maxV;
+        auto vel1 = std::chrono::steady_clock::now();
+        dt = 0.1 * std::min(cellWidth, cellHeight)/maxV;
         energyUpdate();
+        auto energy = std::chrono::steady_clock::now();
         setVelocities(false, true);
-        dt = 0.2 * std::min(cellWidth, cellHeight)/maxV;
+        dt = 0.1 * std::min(cellWidth, cellHeight)/maxV;
+        auto vel2 = std::chrono::steady_clock::now();
         FFSLadvect();
+        auto advect = std::chrono::steady_clock::now();
         setVelocities(false, false);
-        dt = 0.2 * std::min(cellWidth, cellHeight)/maxV;
+        // std::cout << "grav: ";
+        // std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(grav - start).count()/1000.0f << "\n";
+        // std::cout << "momentum: ";
+        // std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(momentum - grav).count()/1000.0f << "\n";
+        // std::cout << "energy: ";
+        // std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(energy - vel1).count()/1000.0f << "\n";
+        // std::cout << "advect: ";
+        // std::cout << std::chrono::duration_cast<std::chrono::milliseconds>(advect - vel2).count()/1000.0f << "\n";
+        
+        
+        
+        dt = 0.1 * std::min(cellWidth, cellHeight)/maxV;
     } else {
         projection(10);
         advect();
@@ -2635,9 +2676,9 @@ int main(int argv, char **argc) {
         // Simulator sim(atoi(argc[2]), atoi(argc[3]), atoi(argc[4]), atoi(argc[5]), (bool)atoi(argc[1]));
         
     }
-    int maxT = 1000000;
-    std::string filename = "/Volumes/Give Me Space/outputGrid_3.txt";
-    // std::string filename = "";
+    int maxT = 2000000;
+    // std::string filename = "/Volumes/Give Me Space/outputGrid_3.txt";
+    std::string filename = "outputGrid_2000000.txt";
     // Simulator sim(atoi(argc[1]), atoi(argc[2]), atoi(argc[3]), atoi(argc[4]), false);
     Simulator sim(width, height, c, r, comp, display, filename);
     // sim.drawCells();

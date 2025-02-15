@@ -63,7 +63,8 @@ int main(int argv, char **argc) {
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 0);      // setting draw color
     SDL_RenderClear(renderer);
 
-    std::ifstream inputFile("/Volumes/Give Me Space/outputGrid10000000.txt");
+    // std::ifstream inputFile("/Volumes/Give Me Space/outputGrid10000000.txt");
+    std::ifstream inputFile("outputGrid_2000000.txt");
     std::vector<std::string> lines;
     std::string line;
     int rows, cols;
@@ -83,16 +84,16 @@ int main(int argv, char **argc) {
         inputFile.seekg(0);
         
     
-        float maxTemperature = 100;
-        float thisMaxTemperature = 0;
-        float maxDensity = 1;
-        float thisMaxDensity = 0;
-        float maxPressure = 1;
-        float thisMaxPressure = 0;
-        float maxe = 1;
-        float thisMaxe = 0;
-        float minGP = 1;
-        float thisMinGP = 0;
+        double maxTemperature = 100;
+        double thisMaxTemperature = 0;
+        double maxDensity = 1;
+        double thisMaxDensity = 0;
+        double maxPressure = 1;
+        double thisMaxPressure = 0;
+        double maxe = 1;
+        double thisMaxe = 0;
+        double minGP = 1;
+        double thisMinGP = 0;
 
         uint pressureDisplay = 0;
         uint temperatureDisplay = 0;
@@ -164,26 +165,29 @@ int main(int argv, char **argc) {
             // for (j = 0; j < cols; j++) {
             //     SDL_Rect rect{j*width/cols,i*height/rows,(j+1)*width/cols,(i+1)*height/rows};
             //     std::vector<std::string> cell = split(row[j], ",");
-            //     float temperature = std::stof(cell[4]);
+            //     double temperature = std::stof(cell[4]);
             //     if (thisMaxTemperature < temperature) {
             //         thisMaxTemperature = temperature;
             //     }
-            //     float scaled_temp = std::min(255.0f,temperature/maxTemperature * 255);
+            //     double scaled_temp = std::min(255.0f,temperature/maxTemperature * 255);
 
             //     SDL_SetRenderDrawColor(renderer, 0, scaled_temp, 0, 255);
             //     SDL_RenderFillRect(renderer, &rect);
             // }
+            double zero = 0;
+            double maxPix = 255;
             for (j = 0; j < cols; j++) {
                 std::vector<std::string> cell = split(row[j], ",");
-                float pressure = (float)std::stod(cell[5]);
-                float density = (float)std::stod(cell[0]);
-                float X = (float)std::stod(cell[1]);
-                float Y = (float)std::stod(cell[2]);
-                float Z = (float)std::stod(cell[3]);
-                float temperature = (float)std::stod(cell[4]);
-                float gravPotential = (float)std::stod(cell[7]);
-                float e = (float)std::stod(cell[6]);
-
+                
+                double pressure = (double)std::stod(cell[5]);
+                double density = (double)std::stod(cell[0]);
+                double X = (double)std::stod(cell[1]);
+                double Y = (double)std::stod(cell[2]);
+                double Z = (double)std::stod(cell[3]);
+                double temperature = (double)std::stod(cell[4]);
+                double e = (double)std::stod(cell[6]);
+                double gravPotential = 0;
+                // (double)std::stod(cell[7]);
 
                 if (density > thisMaxDensity) thisMaxDensity = density;
                 // if (thisMaxDensity > maxDensity) maxDensity = thisMaxDensity;
@@ -197,19 +201,19 @@ int main(int argv, char **argc) {
                 if (e > thisMaxe) thisMaxe = e;
                 SDL_Rect rect{j*width/cols,i*height/rows,(j+1)*width/cols,(i+1)*height/rows};
                 if (pressureDisplay) {
-                    float scaledP_R = std::max(0.0f,std::min(255.0f,255 * (pressure)/(maxPressure))); // inwards pressure
+                    double scaledP_R = std::max(zero,std::min(maxPix,255 * (pressure)/(maxPressure))); // inwards pressure
                     SDL_SetRenderDrawColor(renderer, scaledP_R, 0, 255, 255);
                 } else if (temperatureDisplay) {
-                    float scaled_temp = std::max(0.0f,std::min(255.0f,temperature/maxTemperature * 255));
+                    double scaled_temp = std::max(zero,std::min(maxPix,temperature/maxTemperature * 255));
                     SDL_SetRenderDrawColor(renderer, 0, scaled_temp, 0, 255);
                 } else if (gravPotentialDisplay) {
-                    float scaled_pot = std::max(0.0f,std::min(255.0f,gravPotential/minGP * 255));
+                    double scaled_pot = std::max(zero,std::min(maxPix,gravPotential/minGP * 255));
                     SDL_SetRenderDrawColor(renderer, 255, scaled_pot, 0, 255);
                 } else if (energyDisplay) {
-                    float scaled_e = std::max(0.0f,std::min(255.0f,e/maxe * 255));
+                    double scaled_e = std::max(zero,std::min(maxPix,e/maxe * 255));
                     SDL_SetRenderDrawColor(renderer, scaled_e, 0, 0, 255);
                 } else {
-                    float scaled_dens = std::max(0.0f,std::min(255.0f,std::sqrt(density/maxDensity) * 255));
+                    double scaled_dens = std::max(zero,std::min(maxPix,std::sqrt(density/maxDensity) * 255));
                     SDL_SetRenderDrawColor(renderer, scaled_dens, scaled_dens*(1-Y), 0, 255);
                 }
                 SDL_RenderFillRect(renderer, &rect);
