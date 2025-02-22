@@ -11,8 +11,12 @@ namespace consts {
     const double HeMol = 4.003e-3;
     const double kb = 1.380649e-23;
     const double Na = 6.02214076e23;
+    const double h = 6.626e-34;
     const double r = kb*Na;
     const double QH_He = 4.3e-12;
+    const double QHe_C = 7.275e17;
+    const double c = 2.998e8;
+    const double mH = 1.67e-27;
     
     const double HCv = 10730;
 
@@ -27,7 +31,7 @@ namespace consts {
     // const double GRID_HEIGHT = 1.4E9;
     const int GRID_WIDTH = 800;
     const int GRID_HEIGHT = 800;
-    const double dt = 0.01;
+    const float dt = 0.01;
     const int N_ROWS = 100;
     const int N_COLS = 100;
     const double delta_x = GRID_WIDTH / N_COLS;
@@ -180,11 +184,18 @@ double coolingFunction(double rho, double T, double Z) {
     return rho * rho * Lambda_net; // Cooling rate in erg/cm^3/s
 }
 
-double fusionRate(double rho, double T, double X) {
+double fusionRateH(double rho, double T, double X) {
     const double epsilon0 = 1.07e-19; // J m^3 kg^-2 s^-1
     double T6 = T / 1e6; // Temperature in millions of Kelvin
     if (T6 < 1) return 0; // No fusion below 1 million K
     return epsilon0 * rho * X * X * pow(T6, 4);
+}
+
+double fusionRateHe(double rho, double T, double Y) {
+    const double epsilon0 = 5.1e8; // J m^3 kg^-2 s^-1
+    double T8 = T / 1e8; // Temperature in hundreds of millions of Kelvin
+    if (T8 < 1) return 0; // No fusion below 1 million K
+    return epsilon0 * rho * rho * Y * Y * Y * pow(T8, -3) * exp(-44.42/T8);
 }
 
 class Neighbors;
@@ -205,7 +216,7 @@ class FluidGrid {
         
         std::map<uint, double> sampleCellAtPoint(position xy);
 
-        std::map<uint, double> propsAtij(int i, int j);
+        std::map<uint, long double> propsAtij(int i, int j);
 
         void force(int i, int j, double fx, double fy);
 
@@ -237,7 +248,7 @@ class FluidGrid {
 
         std::vector<FluidCell*> getActive();
 
-        double getdt() {
+        float getdt() {
             return dt;
         }
         unsigned int nActive;
@@ -256,11 +267,19 @@ class FluidGrid {
         uint gravityFlag = 0;
         uint gravPotentialDisplay = 0;
         uint energyDisplay = 0;
+        uint heliumDisplay = 0;
+        uint hydrogenDisplay = 0;
+        uint ZDisplay = 0;
+        uint fusionDisplay = 0;
+        uint degenerateDisplay = 0;
         bool compressible;
     private:
         double width, height;
         double cellWidth, cellHeight;
-        double dt, maxV, maxT, totalMass;
+        double dt, maxV, maxT;
+        float maxdt = 5000;
+        int framesAtMaxDt = 0;
+        long double totalMass;
         double massFactor = 1;
         int rows, cols, cells;
         FluidCell **grid;

@@ -64,7 +64,7 @@ int main(int argv, char **argc) {
     SDL_RenderClear(renderer);
 
     // std::ifstream inputFile("/Volumes/Give Me Space/outputGrid10000000.txt");
-    std::ifstream inputFile("outputGrid_2000000.txt");
+    std::ifstream inputFile("outputGrid_1e7.txt");
     std::vector<std::string> lines;
     std::string line;
     int rows, cols;
@@ -94,11 +94,17 @@ int main(int argv, char **argc) {
         double thisMaxe = 0;
         double minGP = 1;
         double thisMinGP = 0;
+        long double maxFusion = 1;
+        long double thisMaxFusion = 0;
 
         uint pressureDisplay = 0;
         uint temperatureDisplay = 0;
         uint gravPotentialDisplay = 0;
         uint energyDisplay = 0;
+        uint ZDisplay = 0;
+        uint heliumDisplay = 0;
+        uint hydrogenDisplay = 0;
+        uint fusionDisplay = 0;
 
         SDL_Event event;
 
@@ -115,34 +121,95 @@ int main(int argv, char **argc) {
                             gravPotentialDisplay = 0;
                             energyDisplay = 0;
                             pressureDisplay = !(pressureDisplay);
-                            printf("P: %f\n", maxPressure);
+                            hydrogenDisplay = 0;
+                            heliumDisplay = 0;
+                            ZDisplay = 0;
+                            fusionDisplay = 0;
+                            printf("%f\n", maxPressure);
                             break;
                         case SDLK_d:
                             pressureDisplay = 0;
                             temperatureDisplay = 0;
                             gravPotentialDisplay = 0;
                             energyDisplay = 0;
+                            hydrogenDisplay = 0;
+                            heliumDisplay = 0;
+                            ZDisplay = 0;
+                            fusionDisplay = 0;
                             break;
                         case SDLK_t:
                             pressureDisplay = 0;
                             gravPotentialDisplay = 0;
                             energyDisplay = 0;
                             temperatureDisplay = !(temperatureDisplay);
-                            printf("T: %f\n", maxTemperature);
+                            hydrogenDisplay = 0;
+                            heliumDisplay = 0;
+                            ZDisplay = 0;
+                            fusionDisplay = 0;
+                            printf("maxT: %f\n", maxTemperature);
                             break;
                         case SDLK_u:
                             pressureDisplay = 0;
                             temperatureDisplay = 0;
                             energyDisplay = 0;
                             gravPotentialDisplay = !(gravPotentialDisplay);
-                            printf("G: %f\n", minGP);
+                            hydrogenDisplay = 0;
+                            heliumDisplay = 0;
+                            ZDisplay = 0;
+                            fusionDisplay = 0;
+                            printf("gravPot: %f\n",minGP);
                             break;
                         case SDLK_e:
                             pressureDisplay = 0;
                             temperatureDisplay = 0;
                             gravPotentialDisplay = 0;
                             energyDisplay = !(energyDisplay);
-                            printf("e: %f\n", maxe);
+                            hydrogenDisplay = 0;
+                            heliumDisplay = 0;
+                            ZDisplay = 0;
+                            fusionDisplay = 0;
+                            printf("energy: %f\n",maxe);
+                            break;
+                        case SDLK_7:
+                            pressureDisplay = 0;
+                            temperatureDisplay = 0;
+                            gravPotentialDisplay = 0;
+                            energyDisplay = 0;
+                            hydrogenDisplay = !(hydrogenDisplay);
+                            heliumDisplay = 0;
+                            ZDisplay = 0;
+                            fusionDisplay = 0;
+                            break;
+                        case SDLK_8:
+                            pressureDisplay = 0;
+                            temperatureDisplay = 0;
+                            gravPotentialDisplay = 0;
+                            energyDisplay = 0;
+                            hydrogenDisplay = 0;
+                            heliumDisplay = !(heliumDisplay);
+                            ZDisplay = 0;
+                            fusionDisplay = 0;
+                            break;
+                        case SDLK_9:
+                            pressureDisplay = 0;
+                            temperatureDisplay = 0;
+                            gravPotentialDisplay = 0;
+                            energyDisplay = 0;
+                            hydrogenDisplay = 0;
+                            heliumDisplay = 0;
+                            ZDisplay = !(ZDisplay);
+                            fusionDisplay = 0;
+                            break;
+                        case SDLK_f:
+                            pressureDisplay = 0;
+                            temperatureDisplay = 0;
+                            gravPotentialDisplay = 0;
+                            energyDisplay = 0;
+                            hydrogenDisplay = 0;
+                            heliumDisplay = 0;
+                            ZDisplay = 0;
+                            fusionDisplay = !(fusionDisplay);
+                            printf("Fusion Energy: %e\n",maxFusion);
                             break;
                     }
                 }
@@ -150,6 +217,7 @@ int main(int argv, char **argc) {
                 maxTemperature = thisMaxTemperature;
                 thisMaxTemperature = 0;
                 maxDensity = thisMaxDensity;
+                // maxDensity = 100;
                 thisMaxDensity = 0;
                 maxe = thisMaxe;
                 thisMaxe = 0;
@@ -157,6 +225,7 @@ int main(int argv, char **argc) {
                 thisMaxPressure = 0;
                 minGP = thisMinGP;
                 thisMinGP = 0;
+                maxFusion = thisMaxFusion;
                 // SDL_Delay(16);
                 SDL_RenderPresent(renderer);
                 continue;
@@ -187,6 +256,14 @@ int main(int argv, char **argc) {
                 double temperature = (double)std::stod(cell[4]);
                 double e = (double)std::stod(cell[6]);
                 double gravPotential = 0;
+                long double fusion = (long double)std::stold(cell[8]);
+                // printf("%s\n",cell[8]);
+                // if (cell[8].find("e-310") != std::string::npos) {
+                    
+                //     printf("%d\n",cell[8].find("e-310"));
+                    
+                // } else fusion = 0;
+                
                 // (double)std::stod(cell[7]);
 
                 if (density > thisMaxDensity) thisMaxDensity = density;
@@ -199,6 +276,7 @@ int main(int argv, char **argc) {
                 }
                 if (gravPotential < thisMinGP) thisMinGP = gravPotential;
                 if (e > thisMaxe) thisMaxe = e;
+                if (fusion > thisMaxFusion) thisMaxFusion = fusion;
                 SDL_Rect rect{j*width/cols,i*height/rows,(j+1)*width/cols,(i+1)*height/rows};
                 if (pressureDisplay) {
                     double scaledP_R = std::max(zero,std::min(maxPix,255 * (pressure)/(maxPressure))); // inwards pressure
@@ -212,6 +290,19 @@ int main(int argv, char **argc) {
                 } else if (energyDisplay) {
                     double scaled_e = std::max(zero,std::min(maxPix,e/maxe * 255));
                     SDL_SetRenderDrawColor(renderer, scaled_e, 0, 0, 255);
+                } else if (hydrogenDisplay) {
+                    int scaled_X = X*255;
+                    SDL_SetRenderDrawColor(renderer, scaled_X, scaled_X, 0, 255);
+                } else if (ZDisplay) {
+                    int scaled_Z = Z*255;
+                    SDL_SetRenderDrawColor(renderer, 0, 0, scaled_Z, 255); 
+                } else if (heliumDisplay) {
+                    int scaled_Y = Y*255;
+                    SDL_SetRenderDrawColor(renderer, scaled_Y, 0, scaled_Y, 255);
+                } else if (fusionDisplay) {
+                    // double scaled_fusion = std::max((long double)zero,std::min((long double)maxPix,fusion/maxFusion * 255));
+                    long double scaled_fusion = fusion/maxFusion*255;
+                    SDL_SetRenderDrawColor(renderer, 0, scaled_fusion, scaled_fusion, 255);
                 } else {
                     double scaled_dens = std::max(zero,std::min(maxPix,std::sqrt(density/maxDensity) * 255));
                     SDL_SetRenderDrawColor(renderer, scaled_dens, scaled_dens*(1-Y), 0, 255);
